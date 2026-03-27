@@ -41,6 +41,15 @@ func TestConfig(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	testutil.CompareWithFixture(t, yaml)
+
+	// Verify that the NLBSecurityGroupMode = Managed is present in the config
+	awsConf, exists := cm.Data["aws.conf"]
+	if !exists {
+		t.Fatalf("aws.conf key not found in ConfigMap")
+	}
+	if !strings.Contains(awsConf, "NLBSecurityGroupMode = Managed") {
+		t.Fatalf("NLBSecurityGroupMode = Managed not present in aws.conf")
+	}
 }
 
 // newTestHCP creates a HostedControlPlane with default AWS configuration for testing.
