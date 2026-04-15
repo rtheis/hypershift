@@ -1095,8 +1095,11 @@ func sortedByCreationTimestamp(machines []*capiv1.Machine) []*capiv1.Machine {
 
 const (
 	endOfMessage                         = "... too many similar errors\n"
+	endOfGlobalMessage                   = "... message truncated\n"
 	maxMessageLength                     = 1000
+	maxGlobalMessageLength               = 3000
 	aggregatorMachineStateReady          = "ready"
+	aggregatorMachineStateHealthy        = "healthy"
 	aggregatorMachineStateLiveMigratable = "live migratable"
 )
 
@@ -1117,7 +1120,15 @@ func aggregateMachineReasonsAndMessages(messageMap map[string][]string, numMachi
 	sort.Strings(reasons)
 
 	for _, reason := range reasons {
-		msgBuilder.WriteString(aggregateMachineMessages(messageMap[reason]))
+		// Sort messages within each reason bucket to ensure deterministic output
+		// regardless of Kubernetes list order, avoiding unnecessary status updates.
+		sort.Strings(messageMap[reason])
+		reasonBlock := aggregateMachineMessages(messageMap[reason])
+		if msgBuilder.Len()+len(reasonBlock)+len(endOfGlobalMessage) > maxGlobalMessageLength {
+			msgBuilder.WriteString(endOfGlobalMessage)
+			break
+		}
+		msgBuilder.WriteString(reasonBlock)
 	}
 
 	return strings.Join(reasons, ","), msgBuilder.String()
