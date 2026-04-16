@@ -66,6 +66,19 @@
         "namespace": "openshift-image-registry",
         "name": "cluster-image-registry-operator"
       }
+    },
+    {
+      "name": "cloud-network",
+      "displayName": "Cloud Network Config Controller Service Account",
+      "description": "Service account for cloud network configuration (egress IP, subnet management)",
+      "roles": [
+        "roles/compute.instanceAdmin.v1",
+        "roles/compute.networkUser"
+      ],
+      "k8sServiceAccount": {
+        "namespace": "openshift-cloud-network-config-controller",
+        "name": "cloud-network-config-controller"
+      }
     }
   ]
 }

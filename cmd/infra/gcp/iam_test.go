@@ -381,6 +381,26 @@ func TestLoadServiceAccountDefinitions(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("When loading cloud-network definition it should have roles populated", func(t *testing.T) {
+		definitions, err := loadServiceAccountDefinitions("")
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+
+		found := false
+		for _, def := range definitions {
+			if def.Name == "cloud-network" {
+				found = true
+				if len(def.Roles) == 0 {
+					t.Error("expected cloud-network to have non-empty Roles")
+				}
+			}
+		}
+		if !found {
+			t.Error("expected to find cloud-network service account definition")
+		}
+	})
 }
 
 func TestIsAlreadyExistsError(t *testing.T) {
