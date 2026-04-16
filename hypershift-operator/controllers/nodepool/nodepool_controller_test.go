@@ -847,6 +847,7 @@ type testCondition struct {
 	Reason        string
 	Messages      []string
 	MaxMessageLen int // if > 0, assert that len(cond.Message) <= this value
+	MaxReasonLen  int // if > 0, assert that len(cond.Reason) <= this value
 }
 
 func (t *testCondition) Compare(g Gomega, cond *hyperv1.NodePoolCondition) {
@@ -865,6 +866,10 @@ func (t *testCondition) Compare(g Gomega, cond *hyperv1.NodePoolCondition) {
 
 	if t.MaxMessageLen > 0 {
 		g.ExpectWithOffset(1, len(cond.Message)).To(BeNumerically("<=", t.MaxMessageLen))
+	}
+
+	if t.MaxReasonLen > 0 {
+		g.ExpectWithOffset(1, len(cond.Reason)).To(BeNumerically("<=", t.MaxReasonLen))
 	}
 }
 
@@ -1800,6 +1805,108 @@ func TestSetMachineAndNodeConditions(t *testing.T) {
 			},
 		},
 		{
+			name: "When machines fail with many distinct reasons it should truncate the reason field to fit MaxLength=1024",
+			machinesGenerator: func() []client.Object {
+				// Use real CAPI v1beta1 condition reasons plus realistic cloud-provider reasons.
+				// 48 distinct reasons produce a comma-joined string of ~1033 chars, exceeding
+				// the NodePoolCondition.Reason MaxLength=1024 validation limit.
+				failureReasons := []struct {
+					reason  string
+					message string
+				}{
+					{capiv1.WaitingForInfrastructureFallbackReason, ""},
+					{capiv1.MachineHasFailureReason, "Machine has FailureReason: InsufficientCapacity"},
+					{capiv1.DeletingReason, "Waiting for machine volumes to be detached"},
+					{capiv1.DeletionFailedReason, "failed to delete machine"},
+					{capiv1.DrainingReason, "Draining node node-4"},
+					{capiv1.DrainingFailedReason, "failed to drain node: cannot evict pod"},
+					{capiv1.WaitingForVolumeDetachReason, "Waiting for 2 volumes to be detached"},
+					{capiv1.WaitingExternalHookReason, "Waiting for external hook to complete"},
+					{capiv1.PreflightCheckFailedReason, "Machine pre-flight checks failed"},
+					{capiv1.MachineCreationFailedReason, "failed to create machine: quota exceeded"},
+					{capiv1.ScalingUpReason, "Scaling up to 10 replicas"},
+					{capiv1.ScalingDownReason, "Scaling down to 5 replicas"},
+					{capiv1.WaitingForDataSecretFallbackReason, ""},
+					{capiv1.WaitingForControlPlaneFallbackReason, ""},
+					{capiv1.WaitingForControlPlaneAvailableReason, "Control plane is not available"},
+					{capiv1.BootstrapTemplateCloningFailedReason, "failed to clone bootstrap template"},
+					{capiv1.InfrastructureTemplateCloningFailedReason, "failed to clone infrastructure template"},
+					{capiv1.IncorrectExternalRefReason, "external ref is incorrect"},
+					{capiv1.RemediationFailedReason, "remediation failed"},
+					{capiv1.RemediationInProgressReason, "remediation in progress for node-18"},
+					{capiv1.WaitingForRemediationReason, "waiting for remediation to complete"},
+					{capiv1.NodeStartupTimeoutReason, "Node failed to report NodeReady condition within 20m0s"},
+					{capiv1.WaitingForNodeRefReason, ""},
+					{capiv1.NodeProvisioningReason, "Node is provisioning"},
+					{capiv1.NodeNotFoundReason, "node not found in cluster"},
+					{capiv1.NodeConditionsFailedReason, "Condition Ready on node is reporting status False"},
+					{capiv1.NodeInspectionFailedReason, "failed to inspect node"},
+					{capiv1.UnhealthyNodeConditionReason, "Node condition ReadonlyFilesystem is True"},
+					{capiv1.HasRemediateMachineAnnotationReason, "machine has remediate annotation"},
+					{capiv1.TooManyUnhealthyReason, "too many unhealthy machines: 10 of 20"},
+					{capiv1.ExternalRemediationTemplateNotFoundReason, "external remediation template not found"},
+					{capiv1.ExternalRemediationRequestCreationFailedReason, "failed to create external remediation request"},
+					{capiv1.WaitingForControlPlaneProviderInitializedReason, "control plane provider is not initialized"},
+					{capiv1.MissingNodeRefReason, "machine does not have a node ref"},
+					// Realistic cloud-provider reasons (CAPA/CAPZ) — already used in existing tests.
+					{"InstanceTerminated", "i-0abc123def456 instance is in terminated state"},
+					{"InstanceProvisionFailed", "failed to create instance: InsufficientInstanceCapacity"},
+					{"InstanceProvisionStarted", "3 of 7 completed"},
+					{"InsufficientCapacity", "not enough capacity in az us-east-1a"},
+					{"SubnetExhausted", "no available IPs in subnet-0abc123"},
+					{"SecurityGroupNotFound", "security group sg-0abc123 not found"},
+					{"AMINotFound", "AMI ami-0abc123 not found"},
+					{"VPCNotAvailable", "VPC vpc-0abc123 is not available"},
+					{"LaunchTemplateFailed", "failed to create launch template"},
+					{"SpotInstanceTerminated", "spot instance i-0abc123 was terminated"},
+					{"NetworkInterfaceLimitExceeded", "ENI limit reached for instance type m5.xlarge"},
+					{"EBSVolumeLimitExceeded", "EBS volume limit exceeded in us-east-1a"},
+					{"InsufficientInstanceCapacity", "not enough m5.xlarge capacity in us-east-1b"},
+					{"UnsupportedInstanceType", "instance type m5.metal not supported in us-east-1c"},
+				}
+
+				machines := make([]client.Object, len(failureReasons))
+				for i, fr := range failureReasons {
+					machines[i] = &capiv1.Machine{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      fmt.Sprintf("machine-%d", i),
+							Namespace: "myns-cluster-name",
+							Annotations: map[string]string{
+								nodePoolAnnotation: "myns/np-name",
+							},
+						},
+						Status: capiv1.MachineStatus{
+							Conditions: []capiv1.Condition{
+								{
+									Type:    capiv1.ReadyCondition,
+									Status:  corev1.ConditionFalse,
+									Reason:  fr.reason,
+									Message: fr.message,
+								},
+								{
+									Type:    capiv1.MachineNodeHealthyCondition,
+									Status:  corev1.ConditionFalse,
+									Reason:  fr.reason,
+									Message: fr.message,
+								},
+							},
+						},
+					}
+				}
+				return machines
+			},
+			expectedAllMachine: &testCondition{
+				Status:       corev1.ConditionFalse,
+				MaxReasonLen: maxReasonLength,
+				Messages:     []string{fmt.Sprintf("%d of %d machines are not ready", 48, 48)},
+			},
+			expectedAllNodes: &testCondition{
+				Status:       corev1.ConditionFalse,
+				MaxReasonLen: maxReasonLength,
+				Messages:     []string{fmt.Sprintf("%d of %d machines are not healthy", 48, 48)},
+			},
+		},
+		{
 			name: "When 10 of 20 machines are not ready with different reasons it should aggregate correctly",
 			machinesGenerator: func() []client.Object {
 				machines := make([]client.Object, 20)
@@ -1932,6 +2039,244 @@ func TestSetMachineAndNodeConditions(t *testing.T) {
 				tc.expectedCIDRCollision.Compare(gg, cond)
 			}
 
+		})
+	}
+}
+
+func TestTruncateReasons(t *testing.T) {
+	g := NewWithT(t)
+
+	for _, tc := range []struct {
+		name           string
+		reasons        []string
+		expectSuffix   string
+		expectMaxLen   int
+		expectExactLen int // if > 0, expect exact length
+	}{
+		{
+			name:         "When reasons fit within limit it should return them unchanged",
+			reasons:      []string{capiv1.MachineHasFailureReason, capiv1.NodeConditionsFailedReason, capiv1.WaitingForNodeRefReason},
+			expectSuffix: capiv1.WaitingForNodeRefReason,
+			expectMaxLen: maxReasonLength,
+		},
+		{
+			name:         "When a single reason fits within limit it should return it unchanged",
+			reasons:      []string{capiv1.ExternalRemediationRequestCreationFailedReason},
+			expectSuffix: capiv1.ExternalRemediationRequestCreationFailedReason,
+			expectMaxLen: maxReasonLength,
+		},
+		{
+			name:           "When empty reasons it should return empty string",
+			reasons:        []string{},
+			expectExactLen: 0,
+		},
+		{
+			name: "When many CAPI reasons exceed limit it should truncate with ReasonsTruncated suffix",
+			reasons: []string{
+				capiv1.WaitingForInfrastructureFallbackReason,
+				capiv1.MachineHasFailureReason,
+				capiv1.DeletingReason,
+				capiv1.DeletionFailedReason,
+				capiv1.DrainingReason,
+				capiv1.DrainingFailedReason,
+				capiv1.WaitingForVolumeDetachReason,
+				capiv1.WaitingExternalHookReason,
+				capiv1.PreflightCheckFailedReason,
+				capiv1.MachineCreationFailedReason,
+				capiv1.ScalingUpReason,
+				capiv1.ScalingDownReason,
+				capiv1.WaitingForDataSecretFallbackReason,
+				capiv1.WaitingForControlPlaneFallbackReason,
+				capiv1.WaitingForControlPlaneAvailableReason,
+				capiv1.BootstrapTemplateCloningFailedReason,
+				capiv1.InfrastructureTemplateCloningFailedReason,
+				capiv1.IncorrectExternalRefReason,
+				capiv1.RemediationFailedReason,
+				capiv1.RemediationInProgressReason,
+				capiv1.WaitingForRemediationReason,
+				capiv1.NodeStartupTimeoutReason,
+				capiv1.WaitingForNodeRefReason,
+				capiv1.NodeProvisioningReason,
+				capiv1.NodeNotFoundReason,
+				capiv1.NodeConditionsFailedReason,
+				capiv1.NodeInspectionFailedReason,
+				capiv1.UnhealthyNodeConditionReason,
+				capiv1.HasRemediateMachineAnnotationReason,
+				capiv1.TooManyUnhealthyReason,
+				capiv1.ExternalRemediationTemplateNotFoundReason,
+				capiv1.ExternalRemediationRequestCreationFailedReason,
+				capiv1.WaitingForControlPlaneProviderInitializedReason,
+				capiv1.MissingNodeRefReason,
+				// Realistic cloud-provider reasons (CAPA/CAPZ).
+				"InstanceTerminated",
+				"InstanceProvisionFailed",
+				"InstanceProvisionStarted",
+				"InsufficientCapacity",
+				"SubnetExhausted",
+				"SecurityGroupNotFound",
+				"AMINotFound",
+				"VPCNotAvailable",
+				"LaunchTemplateFailed",
+				"SpotInstanceTerminated",
+				"NetworkInterfaceLimitExceeded",
+				"EBSVolumeLimitExceeded",
+				"InsufficientInstanceCapacity",
+				"UnsupportedInstanceType",
+			},
+			expectSuffix: endOfReasons,
+			expectMaxLen: maxReasonLength,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result := truncateReasons(tc.reasons)
+
+			if tc.expectMaxLen > 0 {
+				g.Expect(len(result)).To(BeNumerically("<=", tc.expectMaxLen),
+					"reason length %d exceeds max %d: %s", len(result), tc.expectMaxLen, result)
+			}
+			if tc.expectExactLen > 0 {
+				g.Expect(len(result)).To(Equal(tc.expectExactLen))
+			}
+			if tc.expectSuffix != "" {
+				g.Expect(result).To(HaveSuffix(tc.expectSuffix))
+			}
+		})
+	}
+}
+
+func TestAggregateMachineReasonsAndMessages(t *testing.T) {
+	g := NewWithT(t)
+
+	for _, tc := range []struct {
+		name              string
+		messageMap        map[string][]string
+		numMachines       int
+		numNotReady       int
+		state             string
+		expectReason      string
+		expectMessages    []string
+		expectNotContains []string
+		expectMaxMsgLen   int
+	}{
+		{
+			name: "When a single machine fails it should return its reason and message",
+			messageMap: map[string][]string{
+				capiv1.NodeConditionsFailedReason: {
+					"Machine machine-0: NodeConditionsFailed: Condition Ready on node is reporting status False\n",
+				},
+			},
+			numMachines:    3,
+			numNotReady:    1,
+			state:          aggregatorMachineStateHealthy,
+			expectReason:   capiv1.NodeConditionsFailedReason,
+			expectMessages: []string{"1 of 3 machines are not healthy", "Machine machine-0: NodeConditionsFailed: Condition Ready on node is reporting status False"},
+		},
+		{
+			name: "When machines fail with two reasons it should join reasons with comma",
+			messageMap: map[string][]string{
+				capiv1.MachineHasFailureReason: {
+					"Machine machine-0: MachineHasFailure: Machine has FailureReason: InsufficientCapacity\n",
+				},
+				capiv1.WaitingForInfrastructureFallbackReason: {
+					"Machine machine-1: WaitingForInfrastructure\n",
+				},
+			},
+			numMachines:    5,
+			numNotReady:    2,
+			state:          aggregatorMachineStateReady,
+			expectReason:   capiv1.MachineHasFailureReason + "," + capiv1.WaitingForInfrastructureFallbackReason,
+			expectMessages: []string{"2 of 5 machines are not ready", "Machine machine-0: MachineHasFailure", "Machine machine-1: WaitingForInfrastructure"},
+		},
+		{
+			name: "When many machines share one reason it should truncate per-reason messages",
+			messageMap: func() map[string][]string {
+				msgs := make([]string, 30)
+				for i := range 30 {
+					msgs[i] = fmt.Sprintf("Machine machine-%d: MachineHasFailure: Machine has FailureMessage: i-%012d is in terminated state\n", i, i)
+				}
+				return map[string][]string{
+					capiv1.MachineHasFailureReason: msgs,
+				}
+			}(),
+			numMachines:    30,
+			numNotReady:    30,
+			state:          aggregatorMachineStateReady,
+			expectReason:   capiv1.MachineHasFailureReason,
+			expectMessages: []string{"30 of 30 machines are not ready", "Machine machine-0: MachineHasFailure", endOfMessage},
+		},
+		{
+			name: "When many reasons produce large message blocks it should truncate global message",
+			messageMap: func() map[string][]string {
+				m := make(map[string][]string)
+				// 10 distinct reasons, each with 20 machines producing ~1000 char blocks.
+				reasons := []string{
+					capiv1.MachineHasFailureReason,
+					capiv1.NodeConditionsFailedReason,
+					capiv1.WaitingForInfrastructureFallbackReason,
+					capiv1.DeletingReason,
+					capiv1.DrainingReason,
+					capiv1.NodeStartupTimeoutReason,
+					capiv1.WaitingForNodeRefReason,
+					capiv1.RemediationInProgressReason,
+					capiv1.PreflightCheckFailedReason,
+					capiv1.MachineCreationFailedReason,
+				}
+				longMsg := strings.Repeat("x", 80)
+				machineIdx := 0
+				for _, reason := range reasons {
+					msgs := make([]string, 20)
+					for j := range 20 {
+						msgs[j] = fmt.Sprintf("Machine machine-%d: %s: %s\n", machineIdx, reason, longMsg)
+						machineIdx++
+					}
+					m[reason] = msgs
+				}
+				return m
+			}(),
+			numMachines:     200,
+			numNotReady:     200,
+			state:           aggregatorMachineStateReady,
+			expectMessages:  []string{"200 of 200 machines are not ready", endOfGlobalMessage},
+			expectMaxMsgLen: maxGlobalMessageLength,
+		},
+		{
+			name: "When messages within a reason are unsorted it should sort them deterministically",
+			messageMap: map[string][]string{
+				capiv1.NodeConditionsFailedReason: {
+					"Machine machine-2: NodeConditionsFailed: Condition MemoryPressure is True\n",
+					"Machine machine-0: NodeConditionsFailed: Condition Ready is False\n",
+					"Machine machine-1: NodeConditionsFailed: Condition DiskPressure is True\n",
+				},
+			},
+			numMachines:  5,
+			numNotReady:  3,
+			state:        aggregatorMachineStateHealthy,
+			expectReason: capiv1.NodeConditionsFailedReason,
+			// After sorting, machine-0 should come first, then machine-1, then machine-2.
+			expectMessages: []string{
+				"3 of 5 machines are not healthy",
+				"Machine machine-0: NodeConditionsFailed: Condition Ready is False",
+				"Machine machine-1: NodeConditionsFailed: Condition DiskPressure is True",
+				"Machine machine-2: NodeConditionsFailed: Condition MemoryPressure is True",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reason, message := aggregateMachineReasonsAndMessages(tc.messageMap, tc.numMachines, tc.numNotReady, tc.state)
+
+			if tc.expectReason != "" {
+				g.Expect(reason).To(Equal(tc.expectReason))
+			}
+			for _, msg := range tc.expectMessages {
+				g.Expect(message).To(ContainSubstring(msg))
+			}
+			for _, msg := range tc.expectNotContains {
+				g.Expect(message).ToNot(ContainSubstring(msg))
+			}
+			if tc.expectMaxMsgLen > 0 {
+				g.Expect(len(message)).To(BeNumerically("<=", tc.expectMaxMsgLen),
+					"message length %d exceeds max %d", len(message), tc.expectMaxMsgLen)
+			}
 		})
 	}
 }

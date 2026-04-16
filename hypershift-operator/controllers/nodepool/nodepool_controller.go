@@ -1096,8 +1096,10 @@ func sortedByCreationTimestamp(machines []*capiv1.Machine) []*capiv1.Machine {
 const (
 	endOfMessage                         = "... too many similar errors\n"
 	endOfGlobalMessage                   = "... message truncated\n"
+	endOfReasons                         = ",ReasonsTruncated"
 	maxMessageLength                     = 1000
 	maxGlobalMessageLength               = 3000
+	maxReasonLength                      = 1024 // +kubebuilder:validation:MaxLength on NodePoolCondition.Reason
 	aggregatorMachineStateReady          = "ready"
 	aggregatorMachineStateHealthy        = "healthy"
 	aggregatorMachineStateLiveMigratable = "live migratable"
@@ -1131,7 +1133,35 @@ func aggregateMachineReasonsAndMessages(messageMap map[string][]string, numMachi
 		msgBuilder.WriteString(reasonBlock)
 	}
 
-	return strings.Join(reasons, ","), msgBuilder.String()
+	return truncateReasons(reasons), msgBuilder.String()
+}
+
+// truncateReasons joins reasons with commas and truncates the result to fit
+// within the NodePoolCondition.Reason MaxLength=1024 validation limit.
+// When truncation occurs, the suffix ",ReasonsTruncated" is appended.
+func truncateReasons(reasons []string) string {
+	joined := strings.Join(reasons, ",")
+	if len(joined) <= maxReasonLength {
+		return joined
+	}
+
+	// Build the truncated reason string by adding reasons one at a time,
+	// reserving space for the endOfReasons suffix.
+	builder := strings.Builder{}
+	for i, reason := range reasons {
+		separator := ""
+		if i > 0 {
+			separator = ","
+		}
+		if builder.Len()+len(separator)+len(reason)+len(endOfReasons) > maxReasonLength {
+			builder.WriteString(endOfReasons)
+			break
+		}
+		builder.WriteString(separator)
+		builder.WriteString(reason)
+	}
+
+	return builder.String()
 }
 
 func aggregateMachineMessages(msgs []string) string {
