@@ -344,6 +344,7 @@ func (p GCP) ReconcileCredentials(ctx context.Context, c client.Client, createOr
 		hcluster.Spec.Platform.GCP.WorkloadIdentity.ServiceAccountsEmails.CloudController: CloudControllerCredsSecret(controlPlaneNamespace),
 		hcluster.Spec.Platform.GCP.WorkloadIdentity.ServiceAccountsEmails.Storage:         GCPPDCloudCredentialsSecret(controlPlaneNamespace),
 		hcluster.Spec.Platform.GCP.WorkloadIdentity.ServiceAccountsEmails.ImageRegistry:   ImageRegistryCredsSecret(controlPlaneNamespace),
+		hcluster.Spec.Platform.GCP.WorkloadIdentity.ServiceAccountsEmails.Network:         CNCCCredsSecret(controlPlaneNamespace),
 	}
 
 	for email, secret := range credentialSecrets {
@@ -422,6 +423,19 @@ func ImageRegistryCredsSecret(controlPlaneNamespace string) *corev1.Secret {
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: controlPlaneNamespace,
 			Name:      "image-registry-creds",
+		},
+	}
+}
+
+// CNCCCredsSecret returns the secret containing Workload Identity Federation credentials
+// for the Cloud Network Config Controller to manage cloud-level network configurations.
+// The secret name is hardcoded in the CNO managed template:
+// https://github.com/openshift/cluster-network-operator/blob/bc5af87/bindata/cloud-network-config-controller/managed/controller.yaml#L253
+func CNCCCredsSecret(controlPlaneNamespace string) *corev1.Secret {
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: controlPlaneNamespace,
+			Name:      "cloud-network-config-controller-creds",
 		},
 	}
 }
@@ -572,6 +586,10 @@ func (p GCP) validateWorkloadIdentityConfiguration(hcluster *hyperv1.HostedClust
 
 	if wif.ServiceAccountsEmails.ImageRegistry == "" {
 		return fmt.Errorf("image registry service account email is required")
+	}
+
+	if wif.ServiceAccountsEmails.Network == "" {
+		return fmt.Errorf("network service account email is required")
 	}
 
 	return nil
