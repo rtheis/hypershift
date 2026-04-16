@@ -362,7 +362,7 @@ func TestAddMemberToServiceAccountRoleBinding(t *testing.T) {
 func TestLoadServiceAccountDefinitions(t *testing.T) {
 	// Test loading the embedded default configuration
 	t.Run("When loading embedded default configuration it should return valid definitions", func(t *testing.T) {
-		definitions, err := loadServiceAccountDefinitions("")
+		definitions, err := loadServiceAccountDefinitions()
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -383,7 +383,7 @@ func TestLoadServiceAccountDefinitions(t *testing.T) {
 	})
 
 	t.Run("When loading cloud-network definition it should have roles populated", func(t *testing.T) {
-		definitions, err := loadServiceAccountDefinitions("")
+		definitions, err := loadServiceAccountDefinitions()
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
