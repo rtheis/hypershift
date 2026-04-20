@@ -455,9 +455,9 @@ func validateCAPIConditionBubblingDuringProvisioning(t *testing.T, ctx context.C
 	// NodeHealthy stays nil until the node joins the cluster (minutes). During this entire
 	// window, AllNodesHealthy MUST be False with the aggregated message format.
 	// If it shows True, nil conditions are being silently ignored.
-	nodesHealthyObserved := pollForConditionFalseWithAggregatedMessage(t, ctx, client, nodePool,
+	nodesUnhealthyObserved := pollForConditionFalseWithAggregatedMessage(t, ctx, client, nodePool,
 		hyperv1.NodePoolAllNodesHealthyConditionType, "healthy")
-	if !nodesHealthyObserved {
+	if !nodesUnhealthyObserved {
 		t.Errorf("AllNodesHealthy was never observed as False with aggregated 'machines are not healthy' message "+
 			"during provisioning. This indicates CAPI Machine nil NodeHealthy conditions are being silently "+
 			"ignored instead of treated as unhealthy. NodePool: %s/%s", nodePool.Namespace, nodePool.Name)
@@ -466,9 +466,9 @@ func validateCAPIConditionBubblingDuringProvisioning(t *testing.T, ctx context.C
 	// AllMachinesReady: soft assertion (log-only).
 	// The nil window for Ready condition is brief because the CAPI provider sets Ready=False
 	// quickly after instance launch. We may miss it.
-	machinesReadyObserved := pollForConditionFalseWithAggregatedMessage(t, ctx, client, nodePool,
+	machinesUnreadyObserved := pollForConditionFalseWithAggregatedMessage(t, ctx, client, nodePool,
 		hyperv1.NodePoolAllMachinesReadyConditionType, "ready")
-	if !machinesReadyObserved {
+	if !machinesUnreadyObserved {
 		t.Logf("AllMachinesReady was not observed as False with aggregated message during provisioning "+
 			"(CAPI provider may have set Ready condition before we could observe nil state)")
 	}
