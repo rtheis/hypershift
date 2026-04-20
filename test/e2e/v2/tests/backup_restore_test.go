@@ -565,10 +565,10 @@ var _ = Describe("BackupRestoreEtcdSnapshot", Label("backup-restore", "etcd-snap
 			validatePostRestoreControlPlane(testCtx, platformCfg.excludeWorkloads, expectedConditions, false)
 		})
 
-		It("should have restoreSnapshotURL set on HostedCluster after restore matching the snapshot", func() {
-			if snapshotURL == "" {
-				Skip("snapshotURL was not captured; the snapshotURL verification spec may have failed")
-			}
+		It("should have restoreSnapshotURL set on HostedCluster after restore", func() {
+			// RestoreSnapshotURL contains a presigned URL, which differs from the
+			// original S3 URL stored in HCPEtcdBackup.Status.SnapshotURL. We verify
+			// the field is populated rather than comparing exact values.
 			Eventually(func(g Gomega) {
 				hostedCluster := &hyperv1.HostedCluster{}
 				err := testCtx.MgmtClient.Get(testCtx.Context, crclient.ObjectKey{
@@ -579,10 +579,10 @@ var _ = Describe("BackupRestoreEtcdSnapshot", Label("backup-restore", "etcd-snap
 				g.Expect(hostedCluster.Spec.Etcd.Managed).NotTo(BeNil(), "expected managed etcd spec to be set")
 				g.Expect(hostedCluster.Spec.Etcd.Managed.Storage.RestoreSnapshotURL).To(HaveLen(1),
 					"expected restoreSnapshotURL to contain exactly one entry")
-				g.Expect(hostedCluster.Spec.Etcd.Managed.Storage.RestoreSnapshotURL[0]).To(Equal(snapshotURL),
-					"expected restoreSnapshotURL to match the snapshot created in this run")
+				g.Expect(hostedCluster.Spec.Etcd.Managed.Storage.RestoreSnapshotURL[0]).NotTo(BeEmpty(),
+					"expected restoreSnapshotURL to be a non-empty presigned URL")
 			}).WithPolling(backuprestore.PollInterval).WithTimeout(backuprestore.RestoreTimeout).Should(Succeed())
-			GinkgoWriter.Printf("RestoreSnapshotURL matches expected snapshotURL\n")
+			GinkgoWriter.Printf("RestoreSnapshotURL is set on HostedCluster\n")
 		})
 
 		It("should have etcd-init container logs showing successful snapshot restore", func() {
