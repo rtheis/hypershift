@@ -1,6 +1,7 @@
 package karpenter
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -11,8 +12,11 @@ import (
 	karpenterutil "github.com/openshift/hypershift/support/karpenter"
 	"github.com/openshift/hypershift/support/releaseinfo"
 	"github.com/openshift/hypershift/support/releaseinfo/testutils"
+	"github.com/openshift/hypershift/support/upsert"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -299,5 +303,75 @@ func TestKarpenterDeletion(t *testing.T) {
 					"NodeClaim %s: expected annotation=%v, got=%v", nodeClaimName, shouldHaveAnnotation, hasAnnotation)
 			}
 		})
+	}
+}
+
+func TestReconcileCRDsConcurrentAccess(t *testing.T) {
+	g := NewWithT(t)
+
+	// Snapshot the original CRD specs before any reconciliation.
+	// If reconcileCRDs corrupts the globals, these will diverge.
+	originalSpecs := map[string]apiextensionsv1.CustomResourceDefinitionSpec{
+		crdEC2NodeClass.Name: *crdEC2NodeClass.Spec.DeepCopy(),
+		crdNodePool.Name:     *crdNodePool.Spec.DeepCopy(),
+		crdNodeClaim.Name:    *crdNodeClaim.Spec.DeepCopy(),
+	}
+
+	// Pre-create the CRDs in the fake client so that CreateOrUpdate's
+	// internal Get() succeeds and overwrites the passed object with server state.
+	existingCRDs := make([]client.Object, 0, 3)
+	for _, crd := range []*apiextensionsv1.CustomResourceDefinition{
+		crdEC2NodeClass,
+		crdNodePool,
+		crdNodeClaim,
+	} {
+		serverCopy := crd.DeepCopy()
+		serverCopy.ResourceVersion = "999"
+		serverCopy.UID = "server-uid"
+		serverCopy.Generation = 42
+		existingCRDs = append(existingCRDs, serverCopy)
+	}
+
+	ctx := log.IntoContext(t.Context(), testr.New(t))
+
+	// Launch concurrent reconcilers to trigger the race.
+	concurrency := 20
+	var wg sync.WaitGroup
+	errs := make([]error, concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			// Each goroutine gets its own fake client and reconciler to simulate
+			// independent reconcile loops all sharing the same global CRD variables.
+			guestClient := fake.NewClientBuilder().
+				WithScheme(api.Scheme).
+				WithObjects(existingCRDs...).
+				Build()
+			r := &Reconciler{
+				GuestClient:            guestClient,
+				CreateOrUpdateProvider: upsert.New(false),
+			}
+			errs[index] = r.reconcileCRDs(ctx, false)
+		}(i)
+	}
+
+	wg.Wait()
+
+	for i, err := range errs {
+		g.Expect(err).NotTo(HaveOccurred(), "reconcileCRDs goroutine %d failed", i)
+	}
+
+	// Verify that the global CRD variables were not corrupted by concurrent access.
+	for _, crd := range []*apiextensionsv1.CustomResourceDefinition{
+		crdEC2NodeClass,
+		crdNodePool,
+		crdNodeClaim,
+	} {
+		g.Expect(equality.Semantic.DeepEqual(crd.Spec, originalSpecs[crd.Name])).To(BeTrue(),
+			"global CRD %q spec was corrupted by concurrent reconcileCRDs calls", crd.Name)
+		g.Expect(crd.ResourceVersion).To(BeEmpty(),
+			"global CRD %q had resourceVersion set by concurrent reconcileCRDs calls", crd.Name)
 	}
 }

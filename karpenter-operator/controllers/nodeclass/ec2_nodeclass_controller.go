@@ -222,10 +222,12 @@ func (r *EC2NodeClassReconciler) reconcileCRDs(ctx context.Context, onlyCreate b
 	errs := []error{}
 	var op controllerutil.OperationResult
 	var err error
-	for _, crd := range []*apiextensionsv1.CustomResourceDefinition{
+	for _, desired := range []*apiextensionsv1.CustomResourceDefinition{
 		crdEC2NodeClass,
 		crdOpenshiftEC2NodeClass,
 	} {
+		// We need to deep copy because Create/CreateOrUpdate mutates the object
+		crd := desired.DeepCopy()
 		if onlyCreate {
 			if err := r.guestClient.Create(ctx, crd); err != nil {
 				if !apierrors.IsAlreadyExists(err) {
@@ -234,6 +236,7 @@ func (r *EC2NodeClassReconciler) reconcileCRDs(ctx context.Context, onlyCreate b
 			}
 		} else {
 			op, err = r.CreateOrUpdate(ctx, r.guestClient, crd, func() error {
+				crd.Spec = desired.Spec
 				return nil
 			})
 			if err != nil {

@@ -376,11 +376,12 @@ func (r *Reconciler) reconcileCRDs(ctx context.Context, onlyCreate bool) error {
 	errs := []error{}
 	var op controllerutil.OperationResult
 	var err error
-	for _, crd := range []*apiextensionsv1.CustomResourceDefinition{
+	for _, desired := range []*apiextensionsv1.CustomResourceDefinition{
 		crdEC2NodeClass,
 		crdNodePool,
 		crdNodeClaim,
 	} {
+		crd := desired.DeepCopy()
 		if onlyCreate {
 			if err := r.GuestClient.Create(ctx, crd); err != nil {
 				if !apierrors.IsAlreadyExists(err) {
@@ -389,6 +390,7 @@ func (r *Reconciler) reconcileCRDs(ctx context.Context, onlyCreate bool) error {
 			}
 		} else {
 			op, err = r.CreateOrUpdate(ctx, r.GuestClient, crd, func() error {
+				crd.Spec = desired.Spec
 				return nil
 			})
 			if err != nil {
