@@ -16468,6 +16468,744 @@ oc patch -n ${CLUSTER_NAMESPACE} hostedclusters/${CLUSTER_NAME} -p '{"spec":{"pa
 
 ---
 
+## Source: docs/content/how-to/disaster-recovery/etcd-snapshot-backup/backup-flow.md
+
+---
+title: Backup Flow
+---
+
+# Etcd Snapshot Backup Flow
+
+!!! warning "Tech Preview"
+
+    This feature requires the `HCPEtcdBackup` feature gate enabled in the HyperShift Operator.
+
+This page describes the end-to-end backup process when using the Etcd Snapshot method. The flow involves three actors: the OADP HyperShift plugin (orchestration), the HyperShift Operator's etcd backup controller (execution), and the backup Job (snapshot + upload).
+
+## End-to-End Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI as HyperShift CLI
+    participant Velero
+    participant Plugin as OADP Plugin
+    participant Orch as Etcd Backup Orchestrator
+    participant HO as HCPEtcdBackup Controller
+    participant Job as Backup Job
+    participant etcd as etcd Pods
+    participant S3 as Object Storage
+
+    User->>CLI: hypershift create oadp-backup --use-etcd-snapshot
+    CLI->>CLI: Validate HostedCluster, OADP, DPA
+    CLI->>Velero: Create Backup CR
+
+    Note over Velero,Plugin: Velero iterates included resources
+
+    Velero->>Plugin: Execute(HostedControlPlane)
+    Plugin->>Plugin: Validate platform config
+    Plugin->>Orch: CreateEtcdBackup()
+    Orch->>Orch: Fetch BSL, map storage config
+    Orch->>Orch: Copy BSL credentials to HO namespace
+    Orch->>HO: Create HCPEtcdBackup CR
+    Orch->>HO: VerifyInProgress (30s timeout)
+
+    HO->>HO: Check etcd health
+    HO->>HO: Ensure no other backup running
+    HO->>HO: Create RBAC + NetworkPolicy in HCP ns
+    HO->>Job: Create backup Job in HO namespace
+
+    Job->>etcd: fetch-certs: copy TLS from HCP ns
+    Job->>etcd: snapshot: etcdctl snapshot save
+    Job->>S3: upload: push snapshot.db
+
+    HO->>HO: Extract URL from pod termination message
+    HO->>HO: Persist URL to HostedCluster status
+    HO->>HO: Cleanup RBAC + NetworkPolicy
+
+    Orch->>HO: WaitForCompletion (10min timeout)
+    HO-->>Orch: BackupCompleted = Succeeded
+    Orch-->>Plugin: Return snapshot URL
+
+    Plugin->>Plugin: Cache snapshot URL
+    Plugin->>Plugin: Inject URL annotation on HCP
+
+    Velero->>Plugin: Execute(HostedCluster)
+    Plugin->>Plugin: Add restored-from-backup annotation
+    Plugin->>Plugin: Inject cached snapshot URL annotation
+
+    Velero->>Plugin: Execute(etcd Pod)
+    Plugin-->>Velero: Skip (etcd snapshot mode)
+
+    Velero->>Plugin: Execute(etcd PVC)
+    Plugin-->>Velero: Skip (etcd snapshot mode)
+
+    Velero->>Velero: Backup complete
+```
+
+## Step 1: CLI Validation and Backup Creation
+
+The backup starts when the user runs the CLI command or creates a Velero `Backup` CR manually.
+
+**Using the CLI:**
+
+```bash
+hypershift create oadp-backup \
+  --hc-name my-hosted-cluster \
+  --hc-namespace clusters \
+  --name my-backup \
+  --storage-location default \
+  --use-etcd-snapshot
+```
+
+The CLI performs the following validations before creating the Backup CR:
+
+1. Backup name is valid (DNS-1123 subdomain, max 63 characters).
+2. HostedCluster exists and its platform is detected (AWS, Azure, Agent, KubeVirt, OpenStack).
+3. OADP components are ready: `openshift-adp-controller-manager` and `velero` deployments exist with available replicas.
+4. A `DataProtectionApplication` CR exists with status `Reconciled`.
+5. The HyperShift plugin is configured in the DPA (warning if missing).
+
+The generated Backup CR includes:
+
+- **Included namespaces**: The HostedCluster namespace (e.g. `clusters`) and the HostedControlPlane namespace (e.g. `clusters-my-hosted-cluster`).
+- **Included resources**: Platform-aware resource list excluding etcd-related resources (PVCs, PVs, Deployments, StatefulSets).
+- **Snapshot settings**: `snapshotVolumes: false`, no volume snapshot data mover.
+
+## Step 2: OADP Plugin Processes Resources
+
+Velero iterates over all included resources and invokes the plugin's `BackupItemAction.Execute()` for each item. The plugin behavior depends on the resource kind:
+
+### HostedControlPlane
+
+1. **Platform validation**: The plugin calls `ValidatePlatformConfig()` to check platform-specific constraints.
+2. **Etcd backup creation**: The plugin's Etcd Backup Orchestrator creates the `HCPEtcdBackup` CR:
+    - Fetches the Velero `BackupStorageLocation` (BSL) from the `openshift-adp` namespace.
+    - Maps BSL configuration to `HCPEtcdBackup` storage config (bucket, region, key prefix for S3; container, storage account for Azure).
+    - Copies the BSL credential Secret to the HyperShift Operator namespace, remapping the data key from `cloud` to `credentials`.
+    - If encryption is configured in `HostedCluster.Spec.Etcd.Managed.Backup`, sets the KMS key ARN (AWS) or Key Vault URL (Azure) on the storage config.
+    - Creates the `HCPEtcdBackup` CR in the HCP namespace.
+3. **Verification**: The orchestrator polls the `BackupCompleted` condition for up to 30 seconds, waiting for the controller to acknowledge the backup (status changes to `BackupInProgress` or `BackupSucceeded`).
+4. **Completion wait**: The orchestrator polls for up to 10 minutes (every 5 seconds) until the backup reaches a terminal state.
+5. **URL caching**: On success, the snapshot URL is cached on the plugin instance for use by subsequent items.
+6. **Annotation injection**: The plugin adds `hypershift.openshift.io/etcd-snapshot-url` annotation with the snapshot URL.
+7. **Credential cleanup**: The temporary credential Secret in the HO namespace is deleted.
+
+### HostedCluster
+
+1. Adds `hypershift.openshift.io/restored-from-backup` annotation (used during restore to signal the cluster was restored).
+2. If the etcd backup was not yet created (HostedCluster may be processed before HostedControlPlane), triggers the same backup creation flow.
+3. Injects the cached snapshot URL as annotation and into the status field `lastSuccessfulEtcdBackupURL`.
+
+!!! note
+
+    The URL is injected into both an annotation and the status because Velero strips status fields during backup. The annotation survives and is read during restore.
+
+### etcd Pods
+
+Skipped entirely. In etcd snapshot mode, etcd data is captured via the snapshot, not from the pod's filesystem.
+
+### etcd PVCs
+
+Skipped entirely. PVCs matching the pattern `data-etcd-*` are excluded.
+
+### Other Resources
+
+All other resources (Secrets, ConfigMaps, Services, etc.) are processed normally by Velero without plugin modification.
+
+## Step 3: HCPEtcdBackup Controller Reconciliation
+
+When the OADP plugin creates the `HCPEtcdBackup` CR, the HyperShift Operator's etcd backup controller reconciles it through the following stages:
+
+### 3.1 Pre-flight Checks
+
+1. **Feature gate**: Verifies `HCPEtcdBackup` feature gate is enabled. Returns immediately if disabled.
+2. **Terminal state**: If the backup already succeeded, failed, or was rejected, the controller runs cleanup and retention enforcement, then stops.
+3. **Etcd health**: Fetches the etcd `StatefulSet` in the HCP namespace and verifies all replicas are ready. If unhealthy, the backup is rejected with reason `EtcdUnhealthy`.
+4. **Serial execution**: Scans for active backup Jobs targeting the same HCP namespace. If another backup is running, the new one is rejected with reason `BackupRejected`. This check is idempotent: it runs after checking for the current backup's own Job.
+5. **Credentials**: Verifies the credential Secret referenced in the backup spec exists in the HO namespace.
+
+### 3.2 Resource Creation
+
+The controller creates temporary resources required for the backup Job to access etcd across namespaces:
+
+| Resource | Namespace | Purpose |
+|----------|-----------|---------|
+| `ServiceAccount` | HO namespace | Identity for the backup Job pods |
+| `Role` | HCP namespace | Grants read access to `etcd-client-tls` Secret and `etcd-ca` ConfigMap |
+| `RoleBinding` | HCP namespace | Binds the HO ServiceAccount to the HCP Role |
+| `NetworkPolicy` | HCP namespace | Allows ingress on port 2379 from the HO namespace to etcd pods |
+
+### 3.3 Backup Job
+
+The controller creates a Kubernetes `Job` in the HO namespace with three containers:
+
+| Container | Type | Image | Purpose |
+|-----------|------|-------|---------|
+| `fetch-certs` | Init container | control-plane-operator | Runs `fetch-etcd-certs`: copies etcd TLS certificates from the HCP namespace using the cross-namespace RBAC |
+| `snapshot` | Init container | etcd | Runs `etcdctl snapshot save`: connects to etcd on port 2379 using the fetched TLS certificates and creates a local snapshot file |
+| `upload` | Main container | control-plane-operator | Runs `etcd-upload`: uploads the snapshot file to S3 or Azure Blob using the mounted credentials. Writes the final snapshot URL to the container's termination message |
+
+**Job configuration:**
+
+| Setting | Value | Reason |
+|---------|-------|--------|
+| `backoffLimit` | 0 | No retries on failure |
+| `activeDeadlineSeconds` | 900 (15 min) | Prevents indefinitely running Jobs |
+| `ttlSecondsAfterFinished` | 600 (10 min) | Automatic Job cleanup |
+
+**Shared volumes:**
+
+- `etcd-certs`: EmptyDir shared between `fetch-certs` and `snapshot` containers for TLS certificates.
+- `etcd-backup`: EmptyDir shared between `snapshot` and `upload` containers for the snapshot file.
+- `backup-credentials`: Secret mount (read-only) with cloud provider credentials for the upload container.
+
+### 3.4 Job Monitoring
+
+On subsequent reconcile loops, the controller checks the Job status:
+
+- **Succeeded**: Extracts the snapshot URL from the `upload` container's termination message. Persists it to `HostedCluster.Status.LastSuccessfulEtcdBackupURL` using a retry-on-conflict pattern. Marks the `HCPEtcdBackup` as `BackupSucceeded`.
+- **Failed**: Marks the `HCPEtcdBackup` as `BackupFailed`.
+- **Running**: Requeues reconciliation after 10 seconds.
+
+### 3.5 Cleanup
+
+When the backup reaches a terminal state:
+
+1. Removes the `Role`, `RoleBinding`, and `NetworkPolicy` from the HCP namespace.
+2. Skips cleanup if another active backup Job exists for the same HCP (resources are shared).
+3. The Job itself is cleaned up automatically by the `ttlSecondsAfterFinished` setting.
+
+### 3.6 Retention Enforcement
+
+After cleanup, the controller enforces the retention policy:
+
+1. Lists all `HCPEtcdBackup` CRs for the same HCP namespace, sorted by creation time.
+2. If the count exceeds `MaxBackupCount`, deletes the oldest backups.
+3. The snapshot URL survives CR deletion because it was previously persisted to `HostedCluster.Status.LastSuccessfulEtcdBackupURL`.
+
+## Snapshot URL Persistence
+
+The snapshot URL is persisted through two independent paths to ensure availability during restore:
+
+```mermaid
+graph LR
+    JOB[Backup Job<br/>termination message] -->|extracted by controller| HC_STATUS[HostedCluster.Status<br/>LastSuccessfulEtcdBackupURL]
+    JOB -->|extracted by controller| BACKUP_STATUS[HCPEtcdBackup.Status<br/>SnapshotURL]
+    BACKUP_STATUS -->|read by plugin| ANNOTATION[Annotation on HC/HCP<br/>in Velero backup archive]
+
+    HC_STATUS -.->|survives CR deletion| HC_STATUS
+    ANNOTATION -.->|read during restore| RESTORE[Restore plugin]
+```
+
+- **HostedCluster status**: Persists across `HCPEtcdBackup` CR deletions (retention). Available for operational reference.
+- **Backup annotation**: Stored inside the Velero backup archive. This is the path used during restore, since Velero strips status fields.
+
+## Error Scenarios
+
+| Scenario | Result | Recovery |
+|----------|--------|----------|
+| etcd StatefulSet not fully ready | `BackupCompleted` = `EtcdUnhealthy` | Wait for etcd to recover, create a new backup |
+| Another backup already running for this HCP | `BackupCompleted` = `BackupRejected` | Wait for the active backup to complete |
+| Credential Secret not found in HO namespace | Backup fails immediately | Verify the OADP plugin correctly copied the BSL credentials |
+| Backup Job fails (etcdctl error, upload error) | `BackupCompleted` = `BackupFailed` | Check Job pod logs, verify etcd connectivity and storage permissions |
+| Backup Job exceeds 15 min deadline | Job killed, `BackupCompleted` = `BackupFailed` | Investigate network or storage latency |
+| Plugin verification timeout (30s) | Plugin returns error, Velero marks backup failed | Check HyperShift Operator logs for controller issues |
+| Plugin completion timeout (10 min) | Plugin returns error, Velero marks backup failed | Check backup Job status and pod logs |
+| `HCPEtcdBackup` CRD not installed | Plugin fails with explicit error | Enable the `HCPEtcdBackup` feature gate and ensure CRDs are deployed |
+
+## Platform-specific Notes
+
+### AWS
+
+- Storage uses S3 with the bucket and region from the Velero BSL config.
+- Key prefix: `{bsl-prefix}/backups/{backup-name}/etcd-backup`.
+- Optional KMS encryption via `HostedCluster.Spec.Etcd.Managed.Backup.AWS.KMSKeyARN`.
+
+### Azure
+
+- Storage uses Azure Blob with container and storage account from the BSL config.
+- Key prefix: `{bsl-prefix}/backups/{backup-name}/etcd-backup`.
+- Optional Key Vault encryption via `HostedCluster.Spec.Etcd.Managed.Backup.Azure.EncryptionKeyURL`.
+
+### KubeVirt
+
+- RHCOS boot image PVCs (labeled `hypershift.openshift.io/is-kubevirt-rhcos`) are excluded regardless of backup method.
+- DataVolumes with the same label are also excluded.
+
+### Agent (Bare Metal)
+
+- `ClusterDeployment.Spec.PreserveOnDelete` is set to `false` during backup.
+- `InfraEnv` objects must not be deleted when restoring on the same management cluster.
+
+
+---
+
+## Source: docs/content/how-to/disaster-recovery/etcd-snapshot-backup/index.md
+
+---
+title: Etcd Snapshot Backup (Tech Preview)
+---
+
+!!! warning "Tech Preview"
+
+    The Etcd Snapshot Backup method is a Tech Preview feature. It requires the `HCPEtcdBackup` feature gate to be enabled in the HyperShift Operator. Tech Preview features are not supported in production environments.
+
+## Overview
+
+The Etcd Snapshot Backup method provides an alternative to the default volume snapshot approach for backing up Hosted Control Plane etcd data. Instead of capturing raw PVC content via CSI volume snapshots or filesystem backup, this method uses `etcdutl snapshot save` to create a consistent snapshot of the etcd database and uploads it to object storage (S3 or Azure Blob).
+
+With the volume snapshot method, Velero captures each etcd PVC individually (typically 3 PVCs for a HighlyAvailable control plane). The etcd snapshot method produces a single snapshot file of the logical database, resulting in significantly smaller backup artifacts.
+
+This approach is driven by the `HCPEtcdBackup` Custom Resource and orchestrated through the OADP HyperShift plugin during Velero backup operations.
+
+## Comparison with Volume Snapshot Method
+
+| Aspect | Volume Snapshot (Default) | Etcd Snapshot (Tech Preview) |
+|--------|--------------------------|------------------------------|
+| **Backup mechanism** | CSI volume snapshots or Kopia filesystem backup of etcd PVCs (one per replica, typically 3) | `etcdutl snapshot save` producing a single snapshot file, uploaded to object storage |
+| **Portability** | Tied to the storage provider and CSI driver | Snapshot is storage-agnostic. Cross-cluster restore supported for AWS, Azure, Agent. Not yet validated for KubeVirt |
+| **Backup size** | Full PVC content (3 PVCs for HighlyAvailable) | Single etcd database snapshot (significantly smaller) |
+| **Restore mechanism** | PVC restore from snapshot | `etcdctl snapshot restore` via init container |
+| **Requirements** | CSI driver with snapshot support or Kopia node agent | `HCPEtcdBackup` feature gate enabled |
+| **Encryption** | Depends on storage provider | Optional KMS (AWS) or Key Vault (Azure) encryption |
+
+## Prerequisites
+
+Before using the Etcd Snapshot Backup method, ensure the following:
+
+1. **Feature gate enabled**: The `HCPEtcdBackup` feature gate must be enabled in the HyperShift Operator.
+2. **OADP 1.6+ installed**: The OADP operator (version 1.6 or later) with the HyperShift plugin must be deployed. See Backup and Restore with OADP 1.5 for DPA configuration reference.
+3. **Object storage configured**: A Velero `BackupStorageLocation` pointing to S3 or Azure Blob must be configured.
+4. **Plugin ConfigMap**: The OADP HyperShift plugin must be configured to use the etcd snapshot method via a ConfigMap in the OADP namespace (see Plugin Configuration below).
+5. **General DR prerequisites**: Review the Disaster Recovery Prerequisites page for service publishing strategy requirements and platform-specific considerations.
+
+## Plugin Configuration
+
+The OADP HyperShift plugin reads its configuration from a ConfigMap named `hypershift-oadp-plugin-config` in the OADP namespace (typically `openshift-adp`). To use the etcd snapshot method, the `etcdBackupMethod` key must be set to `etcdSnapshot`:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hypershift-oadp-plugin-config
+  namespace: openshift-adp
+data:
+  etcdBackupMethod: "etcdSnapshot" # "volumeSnapshot" (default) or "etcdSnapshot"
+```
+
+| Key | Values | Description |
+|-----|--------|-------------|
+| `hoNamespace` | namespace name | Namespace where the HyperShift Operator is installed. Defaults to `hypershift`. |
+| `etcdBackupMethod` | `volumeSnapshot` (default), `etcdSnapshot` | Selects the etcd backup method. `etcdSnapshot` enables the Tech Preview flow described in this section. |
+| `migration` | `true`, `false` | Set to `true` when the backup is intended for migration to a different management cluster. |
+
+!!! important
+
+    If the `etcdBackupMethod` is set to `etcdSnapshot` but the `HCPEtcdBackup` CRD is not installed (feature gate not enabled), the plugin will fail with an explicit error.
+
+## Architecture
+
+The Etcd Snapshot Backup system is composed of two layers:
+
+- **Orchestration layer**: The OADP HyperShift plugin (running inside Velero) drives the backup/restore lifecycle. During backup, it creates the `HCPEtcdBackup` CR in the HCP namespace, waits for completion, and injects the snapshot URL into the backed-up resources. During restore, it reads the snapshot URL from the `HostedCluster.Status.LastSuccessfulEtcdBackupURL` field (persisted as an annotation during backup) and injects it into the `RestoreSnapshotURL` spec field.
+- **Execution layer**: HyperShift controllers perform the actual work. The HyperShift Operator's etcd backup controller (running in the HO namespace) watches `HCPEtcdBackup` CRs across all namespaces and creates the backup Job in the HO namespace. The Control Plane Operator's etcd controller handles snapshot restoration via an init container.
+
+### Backup Flow
+
+```mermaid
+graph LR
+    subgraph OADP["openshift-adp"]
+        PLUGIN[OADP Plugin]
+    end
+
+    subgraph HO["hypershift namespace"]
+        CTRL[HCPEtcdBackup Controller]
+        JOB[Backup Job]
+    end
+
+    subgraph HCP["clusters-NAME namespace"]
+        CR[HCPEtcdBackup CR]
+        ETCD[etcd Pods]
+    end
+
+    HC[HostedCluster]
+    S3[(Object Storage)]
+
+    PLUGIN -- "1 create CR" --> CR
+    CTRL -- "2 watch CR" --> CR
+    CTRL -- "3 create Job" --> JOB
+    JOB -- "4 snapshot" --> ETCD
+    JOB -- "5 upload" --> S3
+    CTRL -- "6 persist URL" --> HC
+    PLUGIN -- "7 read URL and inject annotation" --> HC
+```
+
+### Restore Flow
+
+```mermaid
+graph LR
+    subgraph OADP["openshift-adp"]
+        PLUGIN[OADP Plugin]
+    end
+
+    HC[HostedCluster]
+    HCP[HostedControlPlane]
+
+    subgraph CPO["Control Plane Operator"]
+        ETCD_CTRL[etcd controller]
+    end
+
+    ETCD[etcd Pod + init container]
+    S3[(Object Storage)]
+
+    PLUGIN -- "1 read annotation" --> HC
+    PLUGIN -- "2 presign URL" --> PLUGIN
+    PLUGIN -- "3 inject RestoreSnapshotURL" --> HC
+    PLUGIN -- "3 inject RestoreSnapshotURL" --> HCP
+    ETCD_CTRL -- "4 add init container" --> ETCD
+    ETCD -- "5 download snapshot" --> S3
+    ETCD -- "6 etcdctl restore" --> ETCD
+```
+
+### HCPEtcdBackup Custom Resource
+
+The `HCPEtcdBackup` CR represents a one-shot backup request for etcd. Key characteristics:
+
+- **Immutable spec**: Once created, the spec cannot be modified.
+- **Storage backends**: S3 (AWS) or Azure Blob, configured as a discriminated union.
+- **Encryption**: Optional KMS key ARN (AWS) or Key Vault URL (Azure). Immutable once set.
+- **Status**: Tracks completion via `BackupCompleted` condition with reasons: `BackupInProgress`, `BackupSucceeded`, `BackupFailed`, `BackupRejected`, `EtcdUnhealthy`.
+- **Snapshot URL**: On success, `Status.SnapshotURL` contains the URL where the snapshot was uploaded.
+
+### Credential Handling
+
+During **backup**, the OADP plugin copies the Velero `BackupStorageLocation` credentials from the `openshift-adp` namespace to the HyperShift Operator namespace. The backup Job mounts this temporary Secret to authenticate against object storage. The Secret is cleaned up after the backup completes. Once the backup Job succeeds, the HyperShift Operator persists the snapshot URL to `HostedCluster.Status.LastSuccessfulEtcdBackupURL`. The OADP plugin then reads this status field and injects it as an annotation (`hypershift.openshift.io/etcd-snapshot-url`) on the HostedCluster and HostedControlPlane items in the Velero backup archive. This annotation is the mechanism that carries the snapshot URL through to the restore phase, since Velero strips status fields.
+
+During **restore**, no credential copying is needed. The plugin reads the `etcd-snapshot-url` annotation from the backed-up resources. For S3 URLs, the plugin generates a presigned HTTPS URL (1-hour expiry) using the BSL credentials. The presigned URL embeds temporary authentication, allowing the etcd init container to download the snapshot without direct access to credentials.
+
+### Conditions and Status
+
+| Resource | Condition / Field | Meaning |
+|----------|-------------------|---------|
+| `HCPEtcdBackup` | `BackupCompleted` | Tracks backup lifecycle (InProgress, Succeeded, Failed, Rejected, EtcdUnhealthy) |
+| `HostedControlPlane` | `EtcdSnapshotRestored` | Set to True after etcd is restored from snapshot |
+| `HostedControlPlane` | `EtcdBackupSucceeded` | Bubbled from HCPEtcdBackup, indicates most recent backup result |
+| `HostedCluster` | `Status.LastSuccessfulEtcdBackupURL` | Persists the last snapshot URL. Set by the HO controller after successful backup. Read by the OADP plugin to inject as annotation during backup. Survives HCPEtcdBackup CR deletion via retention |
+| `HostedCluster` | Annotation `etcd-snapshot-url` | Injected by OADP plugin during backup (from Status field). Read by OADP plugin during restore to set RestoreSnapshotURL |
+| `HostedCluster` | Annotation `restored-from-backup` | Set during restore, removed once `HostedClusterRestoredFromBackup` condition becomes True |
+
+## Guides
+
+### Backup Flow
+
+Step-by-step description of the backup process: how the OADP plugin triggers the etcd snapshot, how the HyperShift Operator executes it, and how the snapshot URL is persisted.
+
+### Restore Flow
+
+Step-by-step description of the restore process: how the OADP plugin injects the snapshot URL, how the Control Plane Operator restores etcd, and how the cluster recovers.
+
+
+---
+
+## Source: docs/content/how-to/disaster-recovery/etcd-snapshot-backup/restore-flow.md
+
+---
+title: Restore Flow
+---
+
+# Etcd Snapshot Restore Flow
+
+!!! warning "Tech Preview"
+
+    This feature requires the `HCPEtcdBackup` feature gate enabled in the HyperShift Operator.
+
+This page describes the end-to-end restore process when recovering a Hosted Control Plane from an etcd snapshot backup. The flow involves the OADP HyperShift plugin (URL injection), the Control Plane Operator (etcd restore), and the etcd init container (snapshot download and apply).
+
+## End-to-End Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Velero
+    participant Plugin as OADP Plugin
+    participant BSL as BackupStorageLocation
+    participant HC as HostedCluster
+    participant HCP as HostedControlPlane
+    participant CPO as Control Plane Operator
+    participant etcd as etcd StatefulSet
+    participant S3 as Object Storage
+
+    User->>Velero: Create Restore CR (from backup)
+
+    Velero->>Plugin: Execute(HostedCluster)
+    Plugin->>Plugin: Read etcd-snapshot-url annotation
+    Plugin->>BSL: Fetch credentials
+    Plugin->>Plugin: presignS3URL() - convert s3:// to HTTPS
+    Plugin->>HC: Inject RestoreSnapshotURL into Spec
+    Plugin->>HC: Add restored-from-backup annotation
+
+    Velero->>Plugin: Execute(HostedControlPlane)
+    Plugin->>Plugin: Read etcd-snapshot-url annotation
+    Plugin->>Plugin: presignS3URL()
+    Plugin->>HCP: Inject RestoreSnapshotURL into Spec
+
+    Velero->>Plugin: Execute(Pods)
+    Plugin-->>Velero: Skip all pods
+
+    Note over Velero: Restore completes
+
+    CPO->>CPO: Detect RestoreSnapshotURL set
+    CPO->>etcd: Inject etcd-init container
+
+    Note over etcd: etcd Pod starts with init container
+
+    etcd->>S3: Download snapshot from presigned URL
+    etcd->>etcd: Validate (check for XML error response)
+    etcd->>etcd: etcdutl/etcdctl snapshot restore
+    etcd->>etcd: Move restored data to /var/lib/data
+
+    Note over etcd: etcd starts with restored data
+
+    CPO->>CPO: Set EtcdSnapshotRestored = True
+    CPO->>etcd: Remove etcd-init container
+```
+
+## Step 1: Restore CR Creation
+
+The restore starts when the user runs the CLI command or creates a Velero `Restore` CR manually.
+
+**Using the CLI:**
+
+```bash
+hypershift create oadp-restore \
+  --hc-name my-hosted-cluster \
+  --hc-namespace clusters \
+  --name my-restore \
+  --from-backup my-backup
+```
+
+Or from a schedule (uses the latest successful backup):
+
+```bash
+hypershift create oadp-restore \
+  --hc-name my-hosted-cluster \
+  --hc-namespace clusters \
+  --name my-restore \
+  --from-schedule my-schedule
+```
+
+The CLI validates:
+
+1. Either `--from-backup` or `--from-schedule` is specified (mutually exclusive).
+2. The backup or schedule exists and has completed successfully.
+3. OADP components are ready.
+4. A `DataProtectionApplication` CR exists with status `Reconciled`.
+
+The generated Restore CR includes:
+
+- **Included namespaces**: HostedCluster and HostedControlPlane namespaces.
+- **Excluded resources**: Nodes, events, Velero CRs, CSI nodes, VolumeAttachments.
+- **Restore PVs**: `false` (etcd data comes from snapshot, not volume restore).
+- **Existing resource policy**: Configurable (`none` to skip existing, `update` to overwrite).
+- **Preserve node ports**: `true`.
+
+## Step 2: OADP Plugin Processes Restored Resources
+
+Velero reads the backed-up resources from the archive and invokes the plugin's `RestoreItemAction.Execute()` for each item.
+
+### HostedCluster
+
+1. **Backup lookup**: The plugin retrieves the associated Velero `Backup` object and validates that `IncludedNamespaces` is set.
+2. **Annotation reading**: Reads `hypershift.openshift.io/etcd-snapshot-url` annotation from the backed-up HostedCluster.
+3. **URL conversion**: If the URL uses the `s3://` scheme, converts it to a presigned HTTPS URL (see URL Presigning below).
+4. **Spec injection**: Sets `Spec.Etcd.Managed.Storage.RestoreSnapshotURL` to a single-element array containing the presigned URL.
+5. **Restore annotation**: Adds `hypershift.openshift.io/restored-from-backup` annotation.
+
+### HostedControlPlane
+
+Same flow as HostedCluster:
+
+1. Reads `hypershift.openshift.io/etcd-snapshot-url` annotation.
+2. Converts S3 URL to presigned HTTPS if needed.
+3. Injects into `Spec.Etcd.Managed.Storage.RestoreSnapshotURL`.
+
+### Pods
+
+All pods are skipped during restore (returned with `WithoutRestore()` flag). Pods are recreated by their parent workloads (Deployments, StatefulSets) after those are restored.
+
+### ClusterDeployment (Agent Platform)
+
+For the Agent platform, the plugin sets `Spec.PreserveOnDelete = true` to prevent unintended cluster cleanup during subsequent deletes.
+
+## Step 3: S3 URL Presigning
+
+When the snapshot URL uses the `s3://bucket/key` format, the OADP plugin converts it to a presigned HTTPS URL. This allows the etcd init container to download the snapshot without needing direct access to cloud credentials.
+
+**Presigning process:**
+
+```mermaid
+graph LR
+    A[s3://bucket/key] --> B{Parse URL}
+    B --> C[Fetch BSL from OADP namespace]
+    C --> D[Read BSL credential Secret]
+    D --> E[Parse AWS credentials<br/>AccessKeyID + SecretAccessKey]
+    E --> F[Generate SigV4 presigned URL<br/>1-hour expiry]
+    F --> G[https://bucket.s3.region.amazonaws.com/key?X-Amz-...]
+```
+
+**Required credentials in the BSL Secret:**
+
+```ini
+[default]
+aws_access_key_id = AKIA...
+aws_secret_access_key = ...
+aws_session_token = ...  # optional
+```
+
+The presigned URL has a **1-hour expiry**. The etcd init container must download the snapshot within this window. If the URL expires, the init container detects the error (S3 returns an XML error response) and exits with a clear error message.
+
+!!! note
+
+    Azure Blob URLs are already HTTPS and do not require presigning. The plugin passes them through unchanged.
+
+## Step 4: Etcd Snapshot Restore
+
+Once the `HostedControlPlane` is created with `RestoreSnapshotURL` set, the Control Plane Operator detects it and modifies the etcd `StatefulSet`.
+
+### 4.1 Init Container Injection
+
+The CPO checks two conditions:
+
+1. `RestoreSnapshotURL` is non-empty.
+2. `EtcdSnapshotRestored` condition is not yet `True`.
+
+If both are met, an `etcd-init` init container is injected into the etcd StatefulSet spec. The container receives the snapshot URL via environment variable `RESTORE_URL_ETCD`.
+
+### 4.2 Snapshot Download and Restore
+
+The `etcd-init` container runs the `etcd-init.sh` script, which executes the following steps:
+
+```
+1. Check if /var/lib/data is already populated
+   └─ If yes: skip (idempotent, data already restored)
+   └─ If no: proceed with restore
+
+2. Download snapshot from RESTORE_URL_ETCD via curl
+
+3. Validate the downloaded file
+   └─ Check first 5 bytes for "<?xml" prefix
+   └─ If XML detected: log error and exit 1
+      (indicates S3 error: object not found, URL expired, etc.)
+
+4. Detect etcd version and restore
+   ├─ etcd 3.6+ (OCP 4.21+): etcdutl snapshot restore
+   └─ etcd 3.5.x: etcdctl snapshot restore (ETCDCTL_API=3)
+
+5. Restore to staging directory
+   └─ Target: /var/lib/restore (not directly to /var/lib/data)
+
+6. Atomic swap
+   └─ rm -rf /var/lib/data
+   └─ mv /var/lib/restore /var/lib/data
+
+7. etcd starts normally with restored data
+```
+
+**Key safety mechanisms:**
+
+- **Idempotency**: If `/var/lib/data` is already populated (e.g. pod restarted after successful restore), the script skips the restore entirely.
+- **Staging directory**: Restoring to `/var/lib/restore` first and then moving prevents data corruption if the restore fails mid-write.
+- **XML error detection**: S3 returns XML error responses for missing objects, expired presigned URLs, or access denied. The script detects these and fails with a clear error instead of corrupting etcd with XML data.
+- **Version detection**: Automatically selects `etcdutl` (etcd 3.6+) or `etcdctl` (etcd 3.5.x) based on the available binaries.
+
+### 4.3 Post-Restore Reconciliation
+
+After the etcd pod starts successfully with restored data:
+
+1. The CPO sets the `EtcdSnapshotRestored` condition to `True` on the `HostedControlPlane`.
+2. On the next reconciliation loop, the CPO detects `EtcdSnapshotRestored = True` and removes the `etcd-init` container from the StatefulSet. This prevents the init container from running on subsequent pod restarts.
+3. The `HostedCluster` controller detects the `restored-from-backup` annotation and monitors the restore completion. Once the `HostedClusterRestoredFromBackup` condition becomes `True`, the annotation is removed.
+
+## Pre-Restore Checklist
+
+Before performing a restore, ensure:
+
+- [ ] No running pods or PVCs exist in the HostedControlPlane namespace (delete the HostedCluster and NodePools first if restoring on the same management cluster).
+- [ ] The Velero backup has `status.phase: Completed`.
+- [ ] OADP components are running and the DPA is reconciled.
+- [ ] For AWS: BSL credentials are valid and have permission to read the snapshot from S3.
+- [ ] For Agent platform: `InfraEnv` objects are preserved (do not delete them).
+- [ ] Review Disaster Recovery Prerequisites for service publishing strategy requirements.
+
+## Post-Restore Steps
+
+After the restore completes:
+
+1. **Verify etcd health**: Check that the etcd pods are running and the cluster is healthy.
+
+    ```bash
+    oc get pods -n clusters-<hc-name> -l app=etcd
+    ```
+
+2. **Check restore conditions**:
+
+    ```bash
+    oc get hostedcluster <hc-name> -n clusters -o jsonpath='{.status.conditions}' | jq '.[] | select(.type | test("Restore|Etcd"))'
+    ```
+
+3. **AWS OIDC fixup** (if applicable): After restoring to a different management cluster, the OIDC provider may need to be updated.
+
+    ```bash
+    hypershift fix dr-oidc-iam --hc-name <hc-name> --hc-namespace clusters
+    ```
+
+4. **Verify workloads**: Confirm that the hosted cluster's API server is accessible and workloads are running.
+
+    ```bash
+    oc --kubeconfig <hosted-cluster-kubeconfig> get nodes
+    oc --kubeconfig <hosted-cluster-kubeconfig> get clusteroperators
+    ```
+
+## Error Scenarios
+
+| Scenario | Symptom | Recovery |
+|----------|---------|----------|
+| Presigned URL expired (>1h) | etcd-init exits with error, logs show XML error response | Create a new restore from the same backup (generates fresh presigned URL) |
+| Snapshot file corrupted | etcdctl snapshot restore fails | The upload uses S3 CRC32 integrity checks at transport level. If corruption still occurs, restore from a different backup |
+| S3 bucket not accessible | curl download fails | Verify BSL credentials and network connectivity |
+| Existing data in etcd PVC | etcd-init skips restore | Delete the PVC to force a fresh restore, or verify the existing data is correct |
+| HostedCluster already exists with etcd data | etcd-init detects `/var/lib/data` is populated and skips restore | Delete the HostedCluster, NodePools, and etcd PVCs before restoring so the init container can write fresh data |
+| Missing `etcd-snapshot-url` annotation | RestoreSnapshotURL not injected, etcd starts empty | Verify the backup was created with `--use-etcd-snapshot` and completed successfully |
+
+## Platform-specific Considerations
+
+### AWS
+
+- Presigned URLs are generated using SigV4 with the BSL credentials.
+- Post-restore OIDC fixup may be required when restoring to a different management cluster.
+- Worker nodes will be reprovisioned (node readoption is not supported).
+
+### Azure
+
+- Snapshot URLs are already HTTPS (no presigning needed).
+- Worker nodes will be reprovisioned.
+
+### Agent (Bare Metal)
+
+- `ClusterDeployment.Spec.PreserveOnDelete` is set to `true` during restore.
+- `InfraEnv` objects and the Assisted Installer database must be preserved.
+- Node readoption is supported for OCP 4.19+ with MCE 2.9+ / ACM 2.14+.
+
+### KubeVirt
+
+- Restore is only supported on the same management cluster where the backup was created.
+- VMs are recreated after restore (not preserved from backup).
+- Worker nodes will be reprovisioned.
+
+
+---
+
 ## Source: docs/content/how-to/disaster-recovery/index.md
 
 ---
@@ -16492,6 +17230,9 @@ Updated procedures and enhanced features for OADP version 1.5.
 
 ### ETCD Recovery
 ETCD disaster recovery procedures for control plane data backup and restoration.
+
+### Etcd Snapshot Backup (Tech Preview)
+Alternative backup method using native etcd snapshots instead of volume snapshots. Requires the `HCPEtcdBackup` feature gate. Includes detailed backup and restore flow documentation.
 
 
 ---

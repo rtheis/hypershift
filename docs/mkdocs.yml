@@ -92,6 +92,10 @@ nav:
     - how-to/disaster-recovery/backup-and-restore-oadp-1-5.md
     - how-to/disaster-recovery/etcd-recovery.md
     - 'Prerequisites': how-to/disaster-recovery/prerequisites.md
+    - 'Etcd Snapshot Backup (Tech Preview)':
+      - how-to/disaster-recovery/etcd-snapshot-backup/index.md
+      - how-to/disaster-recovery/etcd-snapshot-backup/backup-flow.md
+      - how-to/disaster-recovery/etcd-snapshot-backup/restore-flow.md
   - 'Disconnected':
     - how-to/disconnected/index.md
     - how-to/disconnected/image-content-sources.md
