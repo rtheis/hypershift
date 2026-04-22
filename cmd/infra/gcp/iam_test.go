@@ -362,7 +362,7 @@ func TestAddMemberToServiceAccountRoleBinding(t *testing.T) {
 func TestLoadServiceAccountDefinitions(t *testing.T) {
 	// Test loading the embedded default configuration
 	t.Run("When loading embedded default configuration it should return valid definitions", func(t *testing.T) {
-		definitions, err := loadServiceAccountDefinitions("")
+		definitions, err := loadServiceAccountDefinitions()
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -379,6 +379,26 @@ func TestLoadServiceAccountDefinitions(t *testing.T) {
 			if def.DisplayName == "" {
 				t.Errorf("expected DisplayName to be non-empty for %s", def.Name)
 			}
+		}
+	})
+
+	t.Run("When loading cloud-network definition it should have roles populated", func(t *testing.T) {
+		definitions, err := loadServiceAccountDefinitions()
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+
+		found := false
+		for _, def := range definitions {
+			if def.Name == "cloud-network" {
+				found = true
+				if len(def.Roles) == 0 {
+					t.Error("expected cloud-network to have non-empty Roles")
+				}
+			}
+		}
+		if !found {
+			t.Error("expected to find cloud-network service account definition")
 		}
 	})
 }

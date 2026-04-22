@@ -68,25 +68,11 @@ type ServiceAccountsConfig struct {
 	ServiceAccounts []ServiceAccountDefinition `json:"serviceAccounts"`
 }
 
-// loadServiceAccountDefinitions loads and parses the service accounts configuration.
-// It uses the embedded JSON file by default, or can load from a custom file if provided.
-func loadServiceAccountDefinitions(customConfigPath string) ([]ServiceAccountDefinition, error) {
-	var data []byte
-	var err error
-
-	if customConfigPath != "" {
-		// Load from custom file path
-		data, err = os.ReadFile(customConfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read custom service accounts config: %w", err)
-		}
-	} else {
-		// Use embedded default configuration
-		data = defaultServiceAccountsJSON
-	}
-
+// loadServiceAccountDefinitions loads and parses the service accounts configuration
+// from the embedded JSON file.
+func loadServiceAccountDefinitions() ([]ServiceAccountDefinition, error) {
 	var config ServiceAccountsConfig
-	if err := json.Unmarshal(data, &config); err != nil {
+	if err := json.Unmarshal(defaultServiceAccountsJSON, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse service accounts configuration: %w", err)
 	}
 
@@ -345,7 +331,7 @@ func (c *IAMManager) ensureProviderUsable(ctx context.Context, providerID string
 func (c *IAMManager) CreateServiceAccounts(ctx context.Context) (map[string]string, error) {
 	serviceAccountEmails := make(map[string]string)
 
-	definitions, err := loadServiceAccountDefinitions("")
+	definitions, err := loadServiceAccountDefinitions()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load service account definitions: %w", err)
 	}
@@ -973,7 +959,7 @@ func (c *IAMManager) DeleteOIDCProvider(ctx context.Context) error {
 
 // DeleteServiceAccounts deletes all Google Service Accounts created for this cluster.
 func (c *IAMManager) DeleteServiceAccounts(ctx context.Context) error {
-	definitions, err := loadServiceAccountDefinitions("")
+	definitions, err := loadServiceAccountDefinitions()
 	if err != nil {
 		return fmt.Errorf("failed to load service account definitions: %w", err)
 	}

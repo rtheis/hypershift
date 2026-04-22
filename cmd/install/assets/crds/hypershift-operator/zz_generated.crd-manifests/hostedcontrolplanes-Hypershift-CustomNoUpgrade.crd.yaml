@@ -6333,6 +6333,28 @@ spec:
                                 - message: 'email must be a valid GCP service account
                                     email (format: name@project.iam.gserviceaccount.com)'
                                   rule: self.matches('^[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\\.iam\\.gserviceaccount\\.com$')
+                              network:
+                                description: |-
+                                  network is the Google Service Account email for the Cloud Network Config Controller
+                                  that manages cloud-level network configurations (egress IPs, subnets).
+                                  This GSA requires the following IAM roles:
+                                  - roles/compute.instanceAdmin.v1 (Compute Instance Admin - for managing network interfaces)
+                                  - roles/compute.networkUser (Compute Network User - for using subnets)
+                                  See cmd/infra/gcp/iam-bindings.json for the authoritative role definitions.
+                                  Format: service-account-name@project-id.iam.gserviceaccount.com
+
+                                  This is a user-provided value referencing a pre-created Google Service Account.
+                                  Typically obtained from the output of `hypershift infra create gcp` which creates
+                                  the required service accounts with appropriate IAM roles and WIF bindings.
+                                maxLength: 85
+                                minLength: 37
+                                type: string
+                                x-kubernetes-validations:
+                                - message: Network is immutable
+                                  rule: self == oldSelf
+                                - message: 'email must be a valid GCP service account
+                                    email (format: name@project.iam.gserviceaccount.com)'
+                                  rule: self.matches('^[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\\.iam\\.gserviceaccount\\.com$')
                               nodePool:
                                 description: |-
                                   nodePool is the Google Service Account email for CAPG controllers
@@ -6384,6 +6406,7 @@ spec:
                             - cloudController
                             - controlPlane
                             - imageRegistry
+                            - network
                             - nodePool
                             - storage
                             type: object
@@ -6425,6 +6448,9 @@ spec:
                         project
                       rule: self.workloadIdentity.serviceAccountsEmails.imageRegistry.contains('@')
                         && self.workloadIdentity.serviceAccountsEmails.imageRegistry.endsWith('@'
+                        + self.project + '.iam.gserviceaccount.com')
+                    - message: network service account must belong to the same project
+                      rule: self.workloadIdentity.serviceAccountsEmails.network.endsWith('@'
                         + self.project + '.iam.gserviceaccount.com')
                   ibmcloud:
                     description: ibmcloud defines IBMCloud specific settings for components

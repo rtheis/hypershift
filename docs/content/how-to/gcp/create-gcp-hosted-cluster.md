@@ -33,6 +33,7 @@ hypershift create cluster gcp \
   --cloud-controller-service-account=<cloud-controller-sa-email> \
   --storage-service-account=<storage-sa-email> \
   --image-registry-service-account=<image-registry-sa-email> \
+  --network-service-account=<network-sa-email> \
   --service-account-signing-key-path=<path-to-sa-signer.key> \
   --oidc-issuer-url=<oidc-issuer-url> \
   --base-domain=<your-dns-domain> \
@@ -72,6 +73,7 @@ hypershift create cluster gcp \
 | `--cloud-controller-service-account` | Yes | Cloud Controller Manager SA email |
 | `--storage-service-account` | Yes | GCP PD CSI Driver SA email |
 | `--image-registry-service-account` | Yes | Image Registry Operator SA email |
+| `--network-service-account` | Yes | Cloud Network Config Controller SA email |
 | `--service-account-signing-key-path` | Yes | Path to RSA private key for OIDC token signing |
 | `--oidc-issuer-url` | Yes | OIDC issuer URL |
 | `--node-pool-replicas` | Yes | Number of worker nodes (default: 0) |
