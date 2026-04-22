@@ -307,9 +307,9 @@ func validateBeforeEach(testCtx *internal.TestContext) {
 // validatePreBackupControlPlane validates that deployments, statefulsets, and NodePool conditions
 // are healthy before a backup. It returns the expected conditions for later post-restore validation.
 func validatePreBackupControlPlane(testCtx *internal.TestContext, excludeWorkloads []string) []util.Condition {
-	err := internal.ValidateControlPlaneDeploymentsReadiness(testCtx, excludeWorkloads)
+	err := internal.WaitForControlPlaneDeploymentsReadiness(testCtx, 5*time.Minute, excludeWorkloads)
 	Expect(err).NotTo(HaveOccurred())
-	err = internal.ValidateControlPlaneStatefulSetsReadiness(testCtx, excludeWorkloads)
+	err = internal.WaitForControlPlaneStatefulSetsReadiness(testCtx, 5*time.Minute, excludeWorkloads)
 	Expect(err).NotTo(HaveOccurred())
 	nodePool, err := getNodePool(testCtx)
 	Expect(err).NotTo(HaveOccurred())
