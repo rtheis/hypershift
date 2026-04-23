@@ -10,6 +10,7 @@ import (
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	hyperapi "github.com/openshift/hypershift/support/api"
 	"github.com/openshift/hypershift/support/awsapi"
+	"github.com/openshift/hypershift/support/capabilities"
 	karpenterutil "github.com/openshift/hypershift/support/karpenter"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -41,6 +42,7 @@ func TestReconcileAWSEndpointServiceStatus(t *testing.T) {
 
 	tests := []struct {
 		name                        string
+		hasInfraCapability          bool
 		additionalAllowedPrincipals []string
 		existingAllowedPrincipals   []string
 		expectedPrincipalsToAdd     []string
@@ -48,18 +50,26 @@ func TestReconcileAWSEndpointServiceStatus(t *testing.T) {
 	}{
 		{
 			name:                    "no additional principals",
+			hasInfraCapability:      true,
 			expectedPrincipalsToAdd: []string{mockControlPlaneOperatorRoleArn},
 		},
 		{
 			name:                        "additional principals",
+			hasInfraCapability:          true,
 			additionalAllowedPrincipals: []string{"additional1", "additional2"},
 			expectedPrincipalsToAdd:     []string{mockControlPlaneOperatorRoleArn, "additional1", "additional2"},
 		},
 		{
 			name:                       "removing extra principals",
+			hasInfraCapability:         true,
 			existingAllowedPrincipals:  []string{"existing1", "existing2"},
 			expectedPrincipalsToAdd:    []string{mockControlPlaneOperatorRoleArn},
 			expectedPrincipalsToRemove: []string{"existing1", "existing2"},
+		},
+		{
+			name:                    "no infrastructure capability omits owned tag",
+			hasInfraCapability:      false,
+			expectedPrincipalsToAdd: []string{mockControlPlaneOperatorRoleArn},
 		},
 	}
 
@@ -73,11 +83,14 @@ func TestReconcileAWSEndpointServiceStatus(t *testing.T) {
 				State:           &elbv2types.LoadBalancerState{Code: elbv2types.LoadBalancerStateEnumActive},
 			}}}, nil)
 
-			infra := &configv1.Infrastructure{
-				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
-				Status:     configv1.InfrastructureStatus{InfrastructureName: "management-cluster-infra-id"},
+			clientBuilder := fake.NewClientBuilder().WithScheme(hyperapi.Scheme)
+			if test.hasInfraCapability {
+				clientBuilder = clientBuilder.WithObjects(&configv1.Infrastructure{
+					ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+					Status:     configv1.InfrastructureStatus{InfrastructureName: "management-cluster-infra-id"},
+				})
 			}
-			client := fake.NewClientBuilder().WithScheme(hyperapi.Scheme).WithObjects(infra).Build()
+			client := clientBuilder.Build()
 
 			existingAllowedPrincipals := make([]ec2types.AllowedPrincipal, len(test.existingAllowedPrincipals))
 			for i, p := range test.existingAllowedPrincipals {
@@ -103,7 +116,19 @@ func TestReconcileAWSEndpointServiceStatus(t *testing.T) {
 				}).
 				Return(&ec2.ModifyVpcEndpointServicePermissionsOutput{}, nil)
 
-			r := AWSEndpointServiceReconciler{Client: client}
+			r := AWSEndpointServiceReconciler{
+				Client: client,
+				ManagementClusterCapabilities: &capabilities.MockCapabilityChecker{
+					MockHas: func(caps ...capabilities.CapabilityType) bool {
+						for _, c := range caps {
+							if c == capabilities.CapabilityInfrastructure {
+								return test.hasInfraCapability
+							}
+						}
+						return false
+					},
+				},
+			}
 
 			if err := r.reconcileAWSEndpointServiceStatus(t.Context(), &hyperv1.AWSEndpointService{}, &hyperv1.HostedCluster{
 				Spec: hyperv1.HostedClusterSpec{
@@ -120,12 +145,19 @@ func TestReconcileAWSEndpointServiceStatus(t *testing.T) {
 				t.Fatalf("reconcileAWSEndpointServiceStatus failed: %v", err)
 			}
 
-			if actual, expected := aws.ToString(created.TagSpecifications[0].Tags[0].Key), "kubernetes.io/cluster/management-cluster-infra-id"; actual != expected {
-				t.Errorf("expected first tag key to be %s, was %s", expected, actual)
-			}
-
-			if actual, expected := aws.ToString(created.TagSpecifications[0].Tags[0].Value), "owned"; actual != expected {
-				t.Errorf("expected first tags value to be %s, was %s", expected, actual)
+			if test.hasInfraCapability {
+				if actual, expected := aws.ToString(created.TagSpecifications[0].Tags[0].Key), "kubernetes.io/cluster/management-cluster-infra-id"; actual != expected {
+					t.Errorf("expected first tag key to be %s, was %s", expected, actual)
+				}
+				if actual, expected := aws.ToString(created.TagSpecifications[0].Tags[0].Value), "owned"; actual != expected {
+					t.Errorf("expected first tags value to be %s, was %s", expected, actual)
+				}
+			} else {
+				for _, tag := range created.TagSpecifications[0].Tags {
+					if aws.ToString(tag.Value) == "owned" {
+						t.Errorf("expected no owned tag when infrastructure capability is absent, but found tag: %s", aws.ToString(tag.Key))
+					}
+				}
 			}
 
 			actualToAdd := map[string]struct{}{mockControlPlaneOperatorRoleArn: {}}

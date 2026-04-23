@@ -12,11 +12,11 @@ import (
 	awsutil "github.com/openshift/hypershift/cmd/infra/aws/util"
 	"github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/manifests"
 	"github.com/openshift/hypershift/support/awsapi"
+	"github.com/openshift/hypershift/support/capabilities"
+	"github.com/openshift/hypershift/support/globalconfig"
 	karpenterutil "github.com/openshift/hypershift/support/karpenter"
 	"github.com/openshift/hypershift/support/upsert"
 	supportutil "github.com/openshift/hypershift/support/util"
-
-	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -60,8 +60,9 @@ const (
 type AWSEndpointServiceReconciler struct {
 	client.Client
 	upsert.CreateOrUpdateProvider
-	ec2Client   awsapi.EC2API
-	elbv2Client awsapi.ELBV2API
+	ManagementClusterCapabilities capabilities.CapabiltyChecker
+	ec2Client                     awsapi.EC2API
+	elbv2Client                   awsapi.ELBV2API
 }
 
 func awsEndpointServicesByName(ns string) []reconcile.Request {
@@ -548,22 +549,25 @@ func (r *AWSEndpointServiceReconciler) reconcileAWSEndpointServiceStatus(ctx con
 			return fmt.Errorf("load balancer %s is not yet active", *lbARN)
 		}
 
-		managementClusterInfrastructure := &configv1.Infrastructure{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}}
-		if err := r.Get(ctx, client.ObjectKeyFromObject(managementClusterInfrastructure), managementClusterInfrastructure); err != nil {
-			return fmt.Errorf("failed to get management cluster infrastructure: %w", err)
-		}
-
 		// create the Endpoint Service
+		tags := apiTagToEC2Tag(awsEndpointService.Spec.ResourceTags)
+		if r.ManagementClusterCapabilities.Has(capabilities.CapabilityInfrastructure) {
+			managementClusterInfrastructure := globalconfig.InfrastructureConfig()
+			if err := r.Get(ctx, client.ObjectKeyFromObject(managementClusterInfrastructure), managementClusterInfrastructure); err != nil {
+				return fmt.Errorf("failed to get management cluster infrastructure: %w", err)
+			}
+			tags = append(tags, ec2types.Tag{
+				Key:   aws.String("kubernetes.io/cluster/" + managementClusterInfrastructure.Status.InfrastructureName),
+				Value: aws.String("owned"),
+			})
+		}
 		createEndpointServiceOutput, err := ec2Client.CreateVpcEndpointServiceConfiguration(ctx, &ec2.CreateVpcEndpointServiceConfigurationInput{
 			// TODO: we should probably do some sort of automated acceptance check against the VPC ID in the HostedCluster
 			AcceptanceRequired:      aws.Bool(false),
 			NetworkLoadBalancerArns: []string{aws.ToString(lbARN)},
 			TagSpecifications: []ec2types.TagSpecification{{
 				ResourceType: ec2types.ResourceTypeVpcEndpointService,
-				Tags: append(apiTagToEC2Tag(awsEndpointService.Spec.ResourceTags), ec2types.Tag{
-					Key:   aws.String("kubernetes.io/cluster/" + managementClusterInfrastructure.Status.InfrastructureName),
-					Value: aws.String("owned"),
-				}),
+				Tags:         tags,
 			}},
 		})
 		if err != nil {
