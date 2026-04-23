@@ -147,6 +147,11 @@ See [docs/content/reference/goals-and-design-invariants.md](docs/content/referen
 
 See [docs/content/reference/versioning-support.md](docs/content/reference/versioning-support.md) for release cycle, version skew policies, and support matrices for the HyperShift Operator, CPO, and other components.
 
+### Upgrades lifecycle
+
+See [docs/content/how-to/upgrades.md](docs/content/how-to/upgrades.md) for Control Plane and Data Plane upgrades
+
+
 ## Dependencies and Modules
 
 This is a Go 1.25+ project using:
