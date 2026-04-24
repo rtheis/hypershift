@@ -36,6 +36,7 @@ import (
 )
 
 func TestSetMachineSetReplicas(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                        string
 		nodePool                    *hyperv1.NodePool
@@ -272,6 +273,7 @@ func TestSetMachineSetReplicas(t *testing.T) {
 }
 
 func TestSetMachineDeploymentReplicas(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                        string
 		nodePool                    *hyperv1.NodePool
@@ -758,14 +760,17 @@ func RunTestMachineTemplateBuilders(t *testing.T, preCreateMachineTemplate bool)
 }
 
 func TestMachineTemplateBuilders(t *testing.T) {
+	t.Parallel()
 	RunTestMachineTemplateBuilders(t, false)
 }
 
 func TestMachineTemplateBuildersPreexisting(t *testing.T) {
+	t.Parallel()
 	RunTestMachineTemplateBuilders(t, true)
 }
 
 func TestCleanupMachineTemplates(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	nodePool := &hyperv1.NodePool{
@@ -898,6 +903,7 @@ func TestListMachineTemplatesAWS(t *testing.T) {
 }
 
 func TestListMachineTemplatesIBMCloud(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 	c := fake.NewClientBuilder().WithScheme(api.Scheme).WithObjects().Build()
 	r := &NodePoolReconciler{
@@ -931,6 +937,7 @@ func TestListMachineTemplatesIBMCloud(t *testing.T) {
 }
 
 func TestInPlaceUpgradeMaxUnavailable(t *testing.T) {
+	t.Parallel()
 	intPointer1 := intstr.FromInt(1)
 	intPointer2 := intstr.FromInt(2)
 	strPointer10 := intstr.FromString("10%")
@@ -1012,6 +1019,7 @@ func TestInPlaceUpgradeMaxUnavailable(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 			maxUnavailable, err := getInPlaceMaxUnavailable(tc.nodePool)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -1021,6 +1029,7 @@ func TestInPlaceUpgradeMaxUnavailable(t *testing.T) {
 }
 
 func TestTaintsToJSON(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		taints   []hyperv1.Taint
@@ -1051,6 +1060,7 @@ func TestTaintsToJSON(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 			taints, err := taintsToJSON(tc.taints)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -1068,6 +1078,7 @@ func TestTaintsToJSON(t *testing.T) {
 }
 
 func TestReconcileMachineHealthCheck(t *testing.T) {
+	t.Parallel()
 	hostedcluster := func(opts ...func(client.Object)) *hyperv1.HostedCluster {
 		hc := &hyperv1.HostedCluster{ObjectMeta: metav1.ObjectMeta{Namespace: "ns", Name: "cluster"}}
 		for _, o := range opts {
@@ -1256,6 +1267,7 @@ func TestReconcileMachineHealthCheck(t *testing.T) {
 }
 
 func TestCAPIReconcile(t *testing.T) {
+	t.Parallel()
 	maxUnavailable := intstr.FromInt(0)
 	maxSurge := intstr.FromInt(1)
 	// This is the generated name by machineTemplateBuilders.
@@ -1688,6 +1700,7 @@ func TestCAPIReconcile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 			c := fake.NewClientBuilder().
 				WithScheme(api.Scheme).
@@ -1864,6 +1877,7 @@ func TestCAPIReconcile(t *testing.T) {
 }
 
 func TestGlobalPSManagedLabelOnMachines(t *testing.T) {
+	t.Parallel()
 	maxUnavailable := intstr.FromInt(0)
 	maxSurge := intstr.FromInt(1)
 	awsMachineTemplateName := "test-nodepool-29e4de4b"
@@ -2185,6 +2199,7 @@ func TestGlobalPSManagedLabelOnMachines(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			objects := append([]client.Object{tt.nodePool}, tt.objects...)
@@ -2249,6 +2264,7 @@ func TestGlobalPSManagedLabelOnMachines(t *testing.T) {
 }
 
 func TestPause(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	nodePool := &hyperv1.NodePool{
@@ -2316,6 +2332,7 @@ func TestPause(t *testing.T) {
 }
 
 func TestNewCAPI(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name             string
 		token            *Token
@@ -2348,6 +2365,7 @@ func TestNewCAPI(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			capi, err := newCAPI(tc.token, tc.capiClusterName)

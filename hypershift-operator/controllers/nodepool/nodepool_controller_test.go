@@ -47,6 +47,7 @@ import (
 )
 
 func TestIsUpdatingConfig(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		nodePool *hyperv1.NodePool
@@ -81,6 +82,7 @@ func TestIsUpdatingConfig(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 			g.Expect(isUpdatingConfig(tc.nodePool, tc.target)).To(Equal(tc.expect))
 		})
@@ -88,6 +90,7 @@ func TestIsUpdatingConfig(t *testing.T) {
 }
 
 func TestIsUpdatingVersion(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		nodePool *hyperv1.NodePool
@@ -118,6 +121,7 @@ func TestIsUpdatingVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 			g.Expect(isUpdatingVersion(tc.nodePool, tc.target)).To(Equal(tc.expect))
 		})
@@ -125,6 +129,7 @@ func TestIsUpdatingVersion(t *testing.T) {
 }
 
 func TestIsAutoscalingEnabled(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		nodePool *hyperv1.NodePool
@@ -165,6 +170,7 @@ func TestIsAutoscalingEnabled(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 			g.Expect(isAutoscalingEnabled(tc.nodePool)).To(Equal(tc.expect))
 		})
@@ -172,6 +178,7 @@ func TestIsAutoscalingEnabled(t *testing.T) {
 }
 
 func TestValidateManagement(t *testing.T) {
+	t.Parallel()
 	intstrPointer1 := intstr.FromInt(1)
 	testCases := []struct {
 		name     string
@@ -291,6 +298,7 @@ func TestValidateManagement(t *testing.T) {
 }
 
 func TestValidateInfraID(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 	err := validateInfraID("")
 	g.Expect(err).To(HaveOccurred())
@@ -300,6 +308,7 @@ func TestValidateInfraID(t *testing.T) {
 }
 
 func TestGetName(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	alphaNumeric := regexp.MustCompile(`^[a-z0-9]*$`)
@@ -321,6 +330,7 @@ func TestGetName(t *testing.T) {
 }
 
 func TestGetNodePoolNamespacedName(t *testing.T) {
+	t.Parallel()
 	testControlPlaneNamespace := "control-plane-ns"
 	testNodePoolNamespace := "clusters"
 	testNodePoolName := "nodepool-1"
@@ -400,6 +410,7 @@ func TestGetNodePoolNamespacedName(t *testing.T) {
 }
 
 func TestNodepoolDeletionDoesntRequireHCluster(t *testing.T) {
+	t.Parallel()
 	nodePool := &hyperv1.NodePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "some-nodepool",
@@ -431,6 +442,7 @@ func TestNodepoolDeletionDoesntRequireHCluster(t *testing.T) {
 }
 
 func TestCreateValidGeneratedPayloadCondition(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                    string
 		tokenSecret             *corev1.Secret
@@ -504,6 +516,7 @@ func TestCreateValidGeneratedPayloadCondition(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			var client client.Client
@@ -525,6 +538,7 @@ func TestCreateValidGeneratedPayloadCondition(t *testing.T) {
 }
 
 func TestDefaultNodePoolAMI(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name          string
 		region        string
@@ -589,6 +603,7 @@ func TestDefaultNodePoolAMI(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			other := []client.Object{
@@ -640,6 +655,7 @@ func TestDefaultNodePoolAMI(t *testing.T) {
 }
 
 func TestGetHostedClusterVersion(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                string
 		versionStatus       *hyperv1.ClusterVersionStatus
@@ -698,6 +714,7 @@ func TestGetHostedClusterVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			releaseProvider := &fakereleaseprovider.FakeReleaseProvider{
@@ -874,6 +891,7 @@ func (t *testCondition) Compare(g Gomega, cond *hyperv1.NodePoolCondition) {
 }
 
 func TestSetMachineAndNodeConditions(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 	s := runtime.NewScheme()
 	g.Expect(hyperv1.AddToScheme(s)).To(Succeed())
@@ -2289,6 +2307,7 @@ func newKVInfraMapMock(objects []client.Object) kvinfra.KubevirtInfraClientMap {
 }
 
 func TestIsArchAndPlatformSupported(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		nodePool *hyperv1.NodePool
@@ -2394,6 +2413,7 @@ func TestIsArchAndPlatformSupported(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 			g.Expect(isArchAndPlatformSupported(tc.nodePool)).To(Equal(tc.expect))
 		})
@@ -2401,6 +2421,7 @@ func TestIsArchAndPlatformSupported(t *testing.T) {
 }
 
 func Test_validateHCPayloadSupportsNodePoolCPUArch(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name        string
 		hc          *hyperv1.HostedCluster
@@ -2447,6 +2468,7 @@ func Test_validateHCPayloadSupportsNodePoolCPUArch(t *testing.T) {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			err := validateHCPayloadSupportsNodePoolCPUArch(tt.hc, tt.np)
@@ -2709,6 +2731,7 @@ kind: Config`),
 }
 
 func TestSupportedVersionSkewCondition(t *testing.T) {
+	t.Parallel()
 	basePullSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pull-secret",
@@ -3012,6 +3035,7 @@ func TestSupportedVersionSkewCondition(t *testing.T) {
 }
 
 func TestNodePoolReconciler_reconcile(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string // description of this test case
 		// Named input parameters for target function.
@@ -3179,6 +3203,7 @@ func TestNodePoolReconciler_reconcile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			pullSecret := &corev1.Secret{

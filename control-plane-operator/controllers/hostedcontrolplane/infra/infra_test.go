@@ -715,6 +715,7 @@ func simulateInfraProvisioning(ctx context.Context, c client.Client, hcp *hyperv
 }
 
 func TestReconcileInfrastructure_ErrorCases(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name string
 		hcp  *hyperv1.HostedControlPlane
@@ -811,6 +812,7 @@ func TestReconcileInfrastructure_ErrorCases(t *testing.T) {
 }
 
 func TestReconcileInfrastructure_WhenTransitioningFromPublicToPrivate_ItShouldCleanUpPublicResources(t *testing.T) {
+	t.Parallel()
 	g := NewGomegaWithT(t)
 
 	// Start with Public configuration
@@ -865,6 +867,7 @@ func TestReconcileInfrastructure_WhenTransitioningFromPublicToPrivate_ItShouldCl
 }
 
 func TestReconcileInfrastructure_WhenTransitioningFromPrivateToPublic_ItShouldCleanUpPrivateResources(t *testing.T) {
+	t.Parallel()
 	g := NewGomegaWithT(t)
 
 	// Start with Private configuration
@@ -921,6 +924,7 @@ func TestReconcileInfrastructure_WhenTransitioningFromPrivateToPublic_ItShouldCl
 // Tests moved from hostedcontrolplane_controller_test.go
 
 func TestReconcileOAuthService(t *testing.T) {
+	t.Parallel()
 	targetNamespace := "test"
 	apiPort := int32(config.KASSVCPort)
 	hostname := "test.example.com"
@@ -1149,6 +1153,7 @@ func TestReconcileOAuthService(t *testing.T) {
 }
 
 func TestReconcileAPIServerService(t *testing.T) {
+	t.Parallel()
 	targetNamespace := "test"
 	apiPort := int32(config.KASSVCPort)
 	kasPort := "client"
@@ -1676,6 +1681,7 @@ func (c *fakeMessageCollector) ErrorMessages(resource client.Object) ([]string, 
 var _ events.MessageCollector = &fakeMessageCollector{}
 
 func TestReconcileRouterServiceStatus(t *testing.T) {
+	t.Parallel()
 	const namespace = "test-ns"
 	const svcName = "test"
 	tests := []struct {
@@ -1826,6 +1832,7 @@ func TestReconcileInternalRouterServiceStatus(t *testing.T) {
 }
 
 func TestReconcileOAuthService_AzureLoadBalancer(t *testing.T) {
+	t.Parallel()
 	targetNamespace := "test"
 	apiPort := int32(config.KASSVCPort)
 	ipFamilyPolicy := corev1.IPFamilyPolicyPreferDualStack

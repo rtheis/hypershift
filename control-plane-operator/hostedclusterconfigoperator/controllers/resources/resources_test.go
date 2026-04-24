@@ -228,6 +228,7 @@ func TestReconcileErrorHandling(t *testing.T) {
 }
 
 func TestReconcileOLM(t *testing.T) {
+	t.Parallel()
 	var errs []error
 	hcp := fakeHCP()
 	hcp.Namespace = "openshift-operator-lifecycle-manager"
@@ -475,6 +476,7 @@ func withICS(hcp *hyperv1.HostedControlPlane) *hyperv1.HostedControlPlane {
 }
 
 func TestReconcileKubeadminPasswordHashSecret(t *testing.T) {
+	t.Parallel()
 	testNamespace := "master-cluster1"
 	testHCPName := "cluster1"
 
@@ -548,6 +550,7 @@ func TestReconcileKubeadminPasswordHashSecret(t *testing.T) {
 }
 
 func TestReconcileUserCertCABundle(t *testing.T) {
+	t.Parallel()
 	testNamespace := "master-cluster1"
 	testHCPName := "cluster1"
 	tests := map[string]struct {
@@ -637,6 +640,7 @@ func TestReconcileUserCertCABundle(t *testing.T) {
 var _ manifestReconciler = manifestAndReconcile[*rbacv1.ClusterRole]{}
 
 func TestDestroyCloudResources(t *testing.T) {
+	t.Parallel()
 	originalConditionTime := time.Now().Add(-1 * time.Hour)
 	fakeHostedControlPlane := func() *hyperv1.HostedControlPlane {
 		return &hyperv1.HostedControlPlane{
@@ -950,6 +954,7 @@ func TestDestroyCloudResources(t *testing.T) {
 }
 
 func TestDestroyCloudResourcesWithKASUnavailable(t *testing.T) {
+	t.Parallel()
 	fakeHCP := &hyperv1.HostedControlPlane{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-hcp",
@@ -1038,6 +1043,7 @@ func (e *mockNetError) Timeout() bool   { return e.timeout }
 func (e *mockNetError) Temporary() bool { return e.temporary }
 
 func TestConnectionErrorTracking(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
 		name               string
@@ -1107,6 +1113,7 @@ func TestConnectionErrorTracking(t *testing.T) {
 }
 
 func TestListAccessor(t *testing.T) {
+	t.Parallel()
 	pod := func(name string) corev1.Pod {
 		return corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1130,6 +1137,7 @@ func TestListAccessor(t *testing.T) {
 }
 
 func TestReconcileClusterVersion(t *testing.T) {
+	t.Parallel()
 	hcp := &hyperv1.HostedControlPlane{
 		Spec: hyperv1.HostedControlPlaneSpec{
 			ClusterID: "test-cluster-id",
@@ -1205,6 +1213,7 @@ func TestReconcileClusterVersion(t *testing.T) {
 }
 
 func TestReconcileClusterVersionWithDisabledCapabilities(t *testing.T) {
+	t.Parallel()
 	hcp := &hyperv1.HostedControlPlane{
 		Spec: hyperv1.HostedControlPlaneSpec{
 			ClusterID: "test-cluster-id",
@@ -1282,6 +1291,7 @@ func TestReconcileClusterVersionWithDisabledCapabilities(t *testing.T) {
 }
 
 func TestReconcileClusterVersionWithEnabledCapabilities(t *testing.T) {
+	t.Parallel()
 	hcp := &hyperv1.HostedControlPlane{
 		Spec: hyperv1.HostedControlPlaneSpec{
 			ClusterID: "test-cluster-id",
@@ -1360,6 +1370,7 @@ func TestReconcileClusterVersionWithEnabledCapabilities(t *testing.T) {
 }
 
 func TestReconcileImageContentPolicyType(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                  string
 		hcp                   *hyperv1.HostedControlPlane
@@ -1433,6 +1444,7 @@ func compareICSAndIDMS(g *WithT, ics []hyperv1.ImageContentSource, idms *configv
 }
 
 func TestReconcileKASEndpoints(t *testing.T) {
+	t.Parallel()
 
 	testCases := []struct {
 		name         string
@@ -1490,6 +1502,7 @@ func TestReconcileKASEndpoints(t *testing.T) {
 }
 
 func TestReconcileKubeletConfig(t *testing.T) {
+	t.Parallel()
 	hcpNamespace := "hostedcontrolplane-namespace"
 	hcNamespace := "openshift-config-managed"
 	npName1 := "nodepool-test1"
@@ -1576,6 +1589,7 @@ func TestReconcileKubeletConfig(t *testing.T) {
 }
 
 func TestBuildAWSWebIdentityCredentials(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		roleArn string
 		region  string
@@ -2323,6 +2337,7 @@ func newCondition(conditionType string, status metav1.ConditionStatus, reason, m
 }
 
 func Test_reconciler_reconcileDataPlaneConnectionAvailable(t *testing.T) {
+	t.Parallel()
 	newKonnectivityAgentPod := func(name string, phase corev1.PodPhase) corev1.Pod {
 		return corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -2518,6 +2533,7 @@ func Test_reconciler_reconcileDataPlaneConnectionAvailable(t *testing.T) {
 }
 
 func Test_reconciler_reconcileControlPlaneConnectionAvailable(t *testing.T) {
+	t.Parallel()
 	newConnectivityConfigMap := func(data map[string]string) *corev1.ConfigMap {
 		return &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
@@ -2683,6 +2699,7 @@ func Test_reconciler_reconcileControlPlaneConnectionAvailable(t *testing.T) {
 }
 
 func Test_reconciler_reconcileKASConnectionCheckerDeployment(t *testing.T) {
+	t.Parallel()
 	const testCLIImage = "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:cli-test"
 
 	tests := []struct {
@@ -2969,6 +2986,7 @@ func Test_reconciler_reconcileKASConnectionCheckerDeployment(t *testing.T) {
 }
 
 func TestReconcileMetricsForwarder(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		annotations     map[string]string
