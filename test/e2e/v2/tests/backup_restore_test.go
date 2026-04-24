@@ -235,9 +235,9 @@ var _ = Describe("BackupRestore", Label("backup-restore"), Ordered, Serial, func
 
 	Context(ContextPostBackupControlPlane, func() {
 		It("should have control plane healthy after backup", func() {
-			err := internal.ValidateControlPlaneDeploymentsReadiness(testCtx, platformCfg.excludeWorkloads)
+			err := internal.WaitForControlPlaneDeploymentsReadiness(testCtx, 5*time.Minute, platformCfg.excludeWorkloads)
 			Expect(err).NotTo(HaveOccurred())
-			err = internal.ValidateControlPlaneStatefulSetsReadiness(testCtx, platformCfg.excludeWorkloads)
+			err = internal.WaitForControlPlaneStatefulSetsReadiness(testCtx, 5*time.Minute, platformCfg.excludeWorkloads)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
