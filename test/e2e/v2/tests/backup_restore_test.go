@@ -454,6 +454,19 @@ var _ = Describe("BackupRestoreEtcdSnapshot", Label("backup-restore", "etcd-snap
 				GinkgoWriter.Printf("Failed to restore ConfigMap during cleanup: %v\n", err)
 			}
 		})
+
+		By("Ensuring DPA has the hypershift plugin")
+		dpaState, err := backuprestore.EnsureDPAHypershiftPlugin(testCtx)
+		Expect(err).NotTo(HaveOccurred(), "failed to ensure DPA has hypershift plugin")
+
+		if dpaState.PluginsModified {
+			DeferCleanup(func() {
+				By("Restoring original DPA plugins")
+				if err := backuprestore.RestoreDPAPlugins(testCtx, dpaState); err != nil {
+					GinkgoWriter.Printf("Failed to restore DPA plugins during cleanup: %v\n", err)
+				}
+			})
+		}
 	})
 
 	BeforeEach(func() {

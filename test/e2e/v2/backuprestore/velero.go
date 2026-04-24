@@ -5,6 +5,7 @@ package backuprestore
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -422,6 +423,111 @@ func DeleteOADPSchedule(testCtx *internal.TestContext, scheduleName string) erro
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("failed to delete Schedule %s/%s: %w", DefaultOADPNamespace, scheduleName, err)
 		}
+	}
+
+	return nil
+}
+
+// DPAPluginState captures the original DPA state so that cleanup can restore
+// the defaultPlugins list after a test run.
+type DPAPluginState struct {
+	// Name is the name of the DPA that was modified.
+	Name string
+	// OriginalPlugins is the defaultPlugins list before modification.
+	OriginalPlugins []string
+	// PluginsModified indicates whether the DPA was actually updated.
+	PluginsModified bool
+}
+
+var dpaGVK = schema.GroupVersionKind{
+	Group:   "oadp.openshift.io",
+	Version: "v1alpha1",
+	Kind:    "DataProtectionApplicationList",
+}
+
+// EnsureDPAHypershiftPlugin ensures the first DataProtectionApplication in
+// DefaultOADPNamespace has "hypershift" in its spec.configuration.velero.defaultPlugins.
+// If the plugin is already present this is a no-op. When the plugin is appended
+// the function waits for the Velero pod to restart and become ready.
+func EnsureDPAHypershiftPlugin(testCtx *internal.TestContext) (*DPAPluginState, error) {
+	client := testCtx.MgmtClient
+	ctx := testCtx.Context
+
+	dpaList := &unstructured.UnstructuredList{}
+	dpaList.SetGroupVersionKind(dpaGVK)
+	if err := client.List(ctx, dpaList, crclient.InNamespace(DefaultOADPNamespace)); err != nil {
+		return nil, fmt.Errorf("failed to list DataProtectionApplication resources: %w", err)
+	}
+	if len(dpaList.Items) == 0 {
+		return nil, fmt.Errorf("no DataProtectionApplication resources found in namespace %s", DefaultOADPNamespace)
+	}
+
+	dpa := dpaList.Items[0]
+	plugins, _, err := unstructured.NestedStringSlice(dpa.Object, "spec", "configuration", "velero", "defaultPlugins")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read defaultPlugins from DPA %s: %w", dpa.GetName(), err)
+	}
+
+	state := &DPAPluginState{
+		Name:            dpa.GetName(),
+		OriginalPlugins: plugins,
+	}
+
+	if slices.Contains(plugins, "hypershift") {
+		return state, nil
+	}
+
+	// Append the hypershift plugin and update.
+	updatedPlugins := append(plugins, "hypershift")
+	if err := unstructured.SetNestedStringSlice(dpa.Object, updatedPlugins, "spec", "configuration", "velero", "defaultPlugins"); err != nil {
+		return nil, fmt.Errorf("failed to set defaultPlugins on DPA %s: %w", dpa.GetName(), err)
+	}
+	if err := client.Update(ctx, &dpa); err != nil {
+		return nil, fmt.Errorf("failed to update DPA %s with hypershift plugin: %w", dpa.GetName(), err)
+	}
+	state.PluginsModified = true
+
+	// Wait for Velero to restart with the new plugin.
+	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+		if err := EnsureVeleroPodRunning(testCtx); err != nil {
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		return state, fmt.Errorf("velero pod did not become ready after adding hypershift plugin to DPA %s: %w", dpa.GetName(), err)
+	}
+
+	return state, nil
+}
+
+// RestoreDPAPlugins restores the original defaultPlugins list on the DPA.
+// If the DPA was not modified this is a no-op.
+func RestoreDPAPlugins(testCtx *internal.TestContext, state *DPAPluginState) error {
+	if !state.PluginsModified {
+		return nil
+	}
+
+	client := testCtx.MgmtClient
+	ctx := testCtx.Context
+
+	dpa := &unstructured.Unstructured{}
+	dpa.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "oadp.openshift.io",
+		Version: "v1alpha1",
+		Kind:    "DataProtectionApplication",
+	})
+	if err := client.Get(ctx, crclient.ObjectKey{
+		Namespace: DefaultOADPNamespace,
+		Name:      state.Name,
+	}, dpa); err != nil {
+		return fmt.Errorf("failed to get DPA %s for plugin restore: %w", state.Name, err)
+	}
+
+	if err := unstructured.SetNestedStringSlice(dpa.Object, state.OriginalPlugins, "spec", "configuration", "velero", "defaultPlugins"); err != nil {
+		return fmt.Errorf("failed to set original defaultPlugins on DPA %s: %w", state.Name, err)
+	}
+	if err := client.Update(ctx, dpa); err != nil {
+		return fmt.Errorf("failed to restore DPA %s plugins: %w", state.Name, err)
 	}
 
 	return nil
