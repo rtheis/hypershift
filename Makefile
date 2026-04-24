@@ -362,6 +362,15 @@ test: generate
 	@echo "Running tests with $(NUM_CORES) parallel jobs..."
 	$(GO) test -race -parallel=$(NUM_CORES) -count=1 -timeout=30m ./... -coverprofile cover.out
 
+# Run a subset of unit tests (used by CI sharding).
+# Usage: make test-shard TEST_PACKAGES="./cmd/... ./support/..." COVER_PROFILE="cover-shard.out"
+TEST_PACKAGES ?= ./...
+COVER_PROFILE ?= cover.out
+.PHONY: test-shard
+test-shard: generate
+	@echo "Running shard tests for packages: $(TEST_PACKAGES)"
+	$(GO) test -race -parallel=$(NUM_CORES) -count=1 -timeout=30m $(TEST_PACKAGES) -coverprofile $(COVER_PROFILE)
+
 # OCP envtest index for downstream kubebuilder assets
 ENVTEST_OCP_INDEX := https://raw.githubusercontent.com/openshift/api/master/envtest-releases.yaml
 # OCP version to Kubernetes version mapping (OCP 4.x -> K8s 1.(x+13))
