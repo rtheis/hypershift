@@ -487,17 +487,48 @@ func EnsureDPAHypershiftPlugin(testCtx *internal.TestContext) (*DPAPluginState, 
 	}
 	state.PluginsModified = true
 
-	// Wait for Velero to restart with the new plugin.
+	// Wait for Velero to restart and DPA to reconcile with the new plugin.
 	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
 		if err := EnsureVeleroPodRunning(testCtx); err != nil {
 			return false, nil
 		}
+		if err := ensureDPAReconciled(ctx, client, DefaultOADPNamespace); err != nil {
+			return false, nil
+		}
 		return true, nil
 	}); err != nil {
-		return state, fmt.Errorf("velero pod did not become ready after adding hypershift plugin to DPA %s: %w", dpa.GetName(), err)
+		return state, fmt.Errorf("velero pod or DPA did not become ready after adding hypershift plugin to DPA %s: %w", dpa.GetName(), err)
 	}
 
 	return state, nil
+}
+
+// ensureDPAReconciled checks that at least one DPA in the namespace has
+// the Reconciled condition set to True.
+func ensureDPAReconciled(ctx context.Context, c crclient.Client, namespace string) error {
+	dpaList := &unstructured.UnstructuredList{}
+	dpaList.SetGroupVersionKind(dpaGVK)
+	if err := c.List(ctx, dpaList, crclient.InNamespace(namespace)); err != nil {
+		return fmt.Errorf("failed to list DPA resources: %w", err)
+	}
+	for _, dpa := range dpaList.Items {
+		conditions, found, err := unstructured.NestedSlice(dpa.Object, "status", "conditions")
+		if err != nil || !found {
+			continue
+		}
+		for _, condIface := range conditions {
+			cond, ok := condIface.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if condType, _ := cond["type"].(string); condType == "Reconciled" {
+				if condStatus, _ := cond["status"].(string); condStatus == "True" {
+					return nil
+				}
+			}
+		}
+	}
+	return fmt.Errorf("no reconciled DPA found in namespace %s", namespace)
 }
 
 // RestoreDPAPlugins restores the original defaultPlugins list on the DPA.
