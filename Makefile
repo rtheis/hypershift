@@ -169,8 +169,10 @@ $(MOCKGEN): ${TOOLS_DIR}/go.mod
 	cd $(TOOLS_DIR); $(GO) build -tags=tools -o $(BIN_DIR)/mockgen go.uber.org/mock/mockgen
 
 
-#.PHONY: generate
+.PHONY: generate
 generate: $(MOCKGEN)
+	@echo "Cleaning stale mock files..."
+	git clean -fx -- '*_mock.go'
 	$(GO) generate ./...
 
 # Compile all tests
