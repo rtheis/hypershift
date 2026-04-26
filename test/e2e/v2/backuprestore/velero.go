@@ -488,7 +488,11 @@ func EnsureDPAHypershiftPlugin(testCtx *internal.TestContext) (*DPAPluginState, 
 	state.PluginsModified = true
 
 	// Wait for Velero to restart and DPA to reconcile with the new plugin.
-	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+	// Use immediate=false so the first check happens after the poll interval,
+	// giving the OADP controller time to process the spec change. With
+	// immediate=true the stale Reconciled=True status from the previous
+	// reconciliation satisfies the check before the controller reacts.
+	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, false, func(ctx context.Context) (bool, error) {
 		if err := EnsureVeleroPodRunning(testCtx); err != nil {
 			return false, nil
 		}
