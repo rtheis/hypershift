@@ -5,6 +5,7 @@ package backuprestore
 import (
 	"context"
 	"fmt"
+	"log"
 	"slices"
 	"sort"
 	"strings"
@@ -492,19 +493,90 @@ func EnsureDPAHypershiftPlugin(testCtx *internal.TestContext) (*DPAPluginState, 
 	// giving the OADP controller time to process the spec change. With
 	// immediate=true the stale Reconciled=True status from the previous
 	// reconciliation satisfies the check before the controller reacts.
-	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, false, func(ctx context.Context) (bool, error) {
-		if err := EnsureVeleroPodRunning(testCtx); err != nil {
+	const dpaReconcileTimeout = 10 * time.Minute
+	var lastVeleroErr, lastDPAErr error
+	if err := wait.PollUntilContextTimeout(ctx, 10*time.Second, dpaReconcileTimeout, false, func(ctx context.Context) (bool, error) {
+		lastVeleroErr = EnsureVeleroPodRunning(testCtx)
+		if lastVeleroErr != nil {
+			log.Printf("Velero pod not ready: %v", lastVeleroErr)
 			return false, nil
 		}
-		if err := ensureDPAReconciled(ctx, client, DefaultOADPNamespace); err != nil {
+		lastDPAErr = ensureDPAReconciled(ctx, client, DefaultOADPNamespace)
+		if lastDPAErr != nil {
+			log.Printf("DPA not reconciled: %v", lastDPAErr)
 			return false, nil
 		}
 		return true, nil
 	}); err != nil {
-		return state, fmt.Errorf("velero pod or DPA did not become ready after adding hypershift plugin to DPA %s: %w", dpa.GetName(), err)
+		// Collect final diagnostic state to aid debugging.
+		diag := collectDPADiagnostics(ctx, testCtx, client)
+		return state, fmt.Errorf("velero pod or DPA did not become ready within %v after adding hypershift plugin to DPA %s: %w\nlast velero pod check: %v\nlast DPA reconciled check: %v\n%s",
+			dpaReconcileTimeout, dpa.GetName(), err, lastVeleroErr, lastDPAErr, diag)
 	}
 
 	return state, nil
+}
+
+// collectDPADiagnostics gathers Velero pod statuses and DPA conditions for
+// inclusion in timeout error messages.
+func collectDPADiagnostics(ctx context.Context, testCtx *internal.TestContext, client crclient.Client) string {
+	var b strings.Builder
+
+	// Velero pod status.
+	podList := &corev1.PodList{}
+	labels := map[string]string{
+		"deploy":    "velero",
+		"component": "velero",
+	}
+	if err := client.List(ctx, podList, crclient.InNamespace(DefaultOADPNamespace), crclient.MatchingLabels(labels)); err != nil {
+		fmt.Fprintf(&b, "diagnostics: failed to list Velero pods: %v\n", err)
+	} else if len(podList.Items) == 0 {
+		fmt.Fprintf(&b, "diagnostics: no Velero pods found in namespace %s\n", DefaultOADPNamespace)
+	} else {
+		for _, pod := range podList.Items {
+			fmt.Fprintf(&b, "diagnostics: velero pod %s: phase=%s", pod.Name, pod.Status.Phase)
+			for _, cs := range pod.Status.ContainerStatuses {
+				fmt.Fprintf(&b, " container=%s ready=%t restarts=%d", cs.Name, cs.Ready, cs.RestartCount)
+				if cs.State.Waiting != nil {
+					fmt.Fprintf(&b, " waiting=%s(%s)", cs.State.Waiting.Reason, cs.State.Waiting.Message)
+				}
+				if cs.State.Terminated != nil {
+					fmt.Fprintf(&b, " terminated=%s(exit=%d)", cs.State.Terminated.Reason, cs.State.Terminated.ExitCode)
+				}
+			}
+			fmt.Fprintln(&b)
+		}
+	}
+
+	// DPA conditions.
+	dpaList := &unstructured.UnstructuredList{}
+	dpaList.SetGroupVersionKind(dpaGVK)
+	if err := client.List(ctx, dpaList, crclient.InNamespace(DefaultOADPNamespace)); err != nil {
+		fmt.Fprintf(&b, "diagnostics: failed to list DPA resources: %v\n", err)
+	} else {
+		for _, dpa := range dpaList.Items {
+			conditions, found, err := unstructured.NestedSlice(dpa.Object, "status", "conditions")
+			if err != nil || !found {
+				fmt.Fprintf(&b, "diagnostics: DPA %s: no conditions found\n", dpa.GetName())
+				continue
+			}
+			fmt.Fprintf(&b, "diagnostics: DPA %s conditions:", dpa.GetName())
+			for _, condIface := range conditions {
+				cond, ok := condIface.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				condType, _ := cond["type"].(string)
+				condStatus, _ := cond["status"].(string)
+				condMsg, _ := cond["message"].(string)
+				condReason, _ := cond["reason"].(string)
+				fmt.Fprintf(&b, " [%s=%s reason=%q message=%q]", condType, condStatus, condReason, condMsg)
+			}
+			fmt.Fprintln(&b)
+		}
+	}
+
+	return b.String()
 }
 
 // ensureDPAReconciled checks that at least one DPA in the namespace has
