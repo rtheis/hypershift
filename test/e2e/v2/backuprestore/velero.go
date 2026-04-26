@@ -447,8 +447,11 @@ var dpaGVK = schema.GroupVersionKind{
 }
 
 // EnsureDPAHypershiftPlugin ensures the first DataProtectionApplication in
-// DefaultOADPNamespace has "hypershift" in its spec.configuration.velero.defaultPlugins.
-// If the plugin is already present this is a no-op. When the plugin is appended
+// DefaultOADPNamespace has the hypershift plugin configured. The plugin can be
+// present either in spec.configuration.velero.defaultPlugins (as "hypershift")
+// or in spec.configuration.velero.customPlugins (as an entry named
+// "hypershift-oadp-plugin"). If the plugin is already present via either
+// mechanism this is a no-op. When the plugin is appended to defaultPlugins
 // the function waits for the Velero pod to restart and become ready.
 func EnsureDPAHypershiftPlugin(testCtx *internal.TestContext) (*DPAPluginState, error) {
 	client := testCtx.MgmtClient
@@ -475,6 +478,15 @@ func EnsureDPAHypershiftPlugin(testCtx *internal.TestContext) (*DPAPluginState, 
 	}
 
 	if slices.Contains(plugins, "hypershift") {
+		return state, nil
+	}
+
+	// Check if the plugin is already configured via customPlugins.
+	// Adding "hypershift" to defaultPlugins when it already exists in
+	// customPlugins causes the OADP operator to generate duplicate
+	// init containers named "hypershift-oadp-plugin" in the velero
+	// Deployment, which fails Kubernetes validation.
+	if hasHypershiftCustomPlugin(&dpa) {
 		return state, nil
 	}
 
@@ -605,6 +617,25 @@ func ensureDPAReconciled(ctx context.Context, c crclient.Client, namespace strin
 		}
 	}
 	return fmt.Errorf("no reconciled DPA found in namespace %s", namespace)
+}
+
+// hasHypershiftCustomPlugin checks whether the DPA has an entry named
+// "hypershift-oadp-plugin" in spec.configuration.velero.customPlugins.
+func hasHypershiftCustomPlugin(dpa *unstructured.Unstructured) bool {
+	customPlugins, found, err := unstructured.NestedSlice(dpa.Object, "spec", "configuration", "velero", "customPlugins")
+	if err != nil || !found {
+		return false
+	}
+	for _, p := range customPlugins {
+		plugin, ok := p.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if name, _ := plugin["name"].(string); name == "hypershift-oadp-plugin" {
+			return true
+		}
+	}
+	return false
 }
 
 // RestoreDPAPlugins restores the original defaultPlugins list on the DPA.
