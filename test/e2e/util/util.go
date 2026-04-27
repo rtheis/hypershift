@@ -34,6 +34,7 @@ import (
 	"github.com/openshift/hypershift/support/certs"
 	"github.com/openshift/hypershift/support/conditions"
 	suppconfig "github.com/openshift/hypershift/support/config"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/releaseinfo"
 	hyperutil "github.com/openshift/hypershift/support/util"
 
@@ -1689,7 +1690,7 @@ func EnsurePodsWithEmptyDirPVsHaveSafeToEvictAnnotations(t *testing.T, ctx conte
 				hasTmpDirAnnotation := false
 				safe2EvictVolumes := strings.Split(pod.Annotations[suppconfig.PodSafeToEvictLocalVolumesKey], ",")
 				safe2EvictVolumes = slices.DeleteFunc(safe2EvictVolumes, func(s string) bool {
-					hasTmpDir := s == hyperutil.PodTmpDirMountName
+					hasTmpDir := s == podspec.PodTmpDirMountName
 					hasTmpDirAnnotation = hasTmpDirAnnotation || hasTmpDir
 					return s == "" || hasTmpDir
 				})
@@ -1851,7 +1852,7 @@ func EnsureReadOnlyRootFilesystem(t *testing.T, ctx context.Context, hostClient 
 					}
 				}
 				containerHasTmpDir := slices.ContainsFunc(c.VolumeMounts, func(v corev1.VolumeMount) bool {
-					return v.MountPath == hyperutil.PodTmpDirMountPath
+					return v.MountPath == podspec.PodTmpDirMountPath
 				})
 				g.Expect(containerHasTmpDir).To(BeTrue(), "container %s in pod %s does not have /tmp mounted, and it is expected to mount it", c.Name, pod.Name)
 			}
@@ -2389,7 +2390,7 @@ func EnsureKubeAPIDNSNameCustomCert(t *testing.T, ctx context.Context, mgmtClien
 			if err != nil {
 				return false
 			}
-			return hyperutil.IsDeploymentReady(ctx, kubeAPIServerDeployment)
+			return podspec.IsDeploymentReady(ctx, kubeAPIServerDeployment)
 		}, kasDeploymentTimeout, 10*time.Second).Should(BeTrue(), "failed to ensure KAS Deployment is ready")
 
 		// KAS deployment readiness should ensure certificate configuration is loaded

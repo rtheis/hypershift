@@ -8,8 +8,8 @@ import (
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	assets "github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/assets"
 	controlplanecomponent "github.com/openshift/hypershift/support/controlplane-component"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/rhobsmonitoring"
-	"github.com/openshift/hypershift/support/util"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,13 +48,13 @@ func TestAdaptDeployment(t *testing.T) {
 				))
 
 				// Verify the secret name for provider-creds
-				providerCredsVolume := util.FindVolume("provider-creds", deploymentObj.Spec.Template.Spec.Volumes)
+				providerCredsVolume := podspec.FindVolume("provider-creds", deploymentObj.Spec.Template.Spec.Volumes)
 				g.Expect(providerCredsVolume).ToNot(BeNil())
 				g.Expect(providerCredsVolume.VolumeSource.Secret).ToNot(BeNil())
 				g.Expect(providerCredsVolume.VolumeSource.Secret.SecretName).To(Equal("karpenter-credentials"))
 
 				// Verify container configuration
-				container := util.FindContainer(ComponentName, deploymentObj.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deploymentObj.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil(), "container %s should exist", ComponentName)
 				g.Expect(container.Image).To(Equal("quay.io/hypershift/operator:latest"))
 
@@ -104,7 +104,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err = opts.adaptDeployment(cpContext, deploymentObj)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deploymentObj.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deploymentObj.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil(), "container %s should exist", ComponentName)
 				g.Expect(container.Args).To(ContainElement("--control-plane-operator-image=quay.io/hypershift/cpo:v1.0"))
 			},
@@ -124,7 +124,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err = opts.adaptDeployment(cpContext, deploymentObj)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deploymentObj.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deploymentObj.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil(), "container %s should exist", ComponentName)
 				g.Expect(container.Env).To(ContainElement(
 					corev1.EnvVar{
@@ -149,9 +149,9 @@ func TestAdaptDeployment(t *testing.T) {
 				err = opts.adaptDeployment(cpContext, deploymentObj)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deploymentObj.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deploymentObj.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil(), "container %s should exist", ComponentName)
-				g.Expect(util.FindEnvVar(rhobsmonitoring.EnvironmentVariable, container.Env)).To(BeNil())
+				g.Expect(podspec.FindEnvVar(rhobsmonitoring.EnvironmentVariable, container.Env)).To(BeNil())
 			},
 		},
 		{
@@ -168,16 +168,16 @@ func TestAdaptDeployment(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				// Verify NO provider-creds volume is added for non-AWS
-				g.Expect(util.FindVolume("provider-creds", deploymentObj.Spec.Template.Spec.Volumes)).To(BeNil())
+				g.Expect(podspec.FindVolume("provider-creds", deploymentObj.Spec.Template.Spec.Volumes)).To(BeNil())
 
-				container := util.FindContainer(ComponentName, deploymentObj.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deploymentObj.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil(), "container %s should exist", ComponentName)
 				g.Expect(container.Image).To(Equal("quay.io/hypershift/operator:latest"))
 
 				// Verify AWS-specific env vars are NOT present
-				g.Expect(util.FindEnvVar("AWS_SHARED_CREDENTIALS_FILE", container.Env)).To(BeNil())
-				g.Expect(util.FindEnvVar("AWS_REGION", container.Env)).To(BeNil())
-				g.Expect(util.FindEnvVar("AWS_SDK_LOAD_CONFIG", container.Env)).To(BeNil())
+				g.Expect(podspec.FindEnvVar("AWS_SHARED_CREDENTIALS_FILE", container.Env)).To(BeNil())
+				g.Expect(podspec.FindEnvVar("AWS_REGION", container.Env)).To(BeNil())
+				g.Expect(podspec.FindEnvVar("AWS_SDK_LOAD_CONFIG", container.Env)).To(BeNil())
 
 				// Verify basic args are set
 				g.Expect(container.Args).To(ContainElements(

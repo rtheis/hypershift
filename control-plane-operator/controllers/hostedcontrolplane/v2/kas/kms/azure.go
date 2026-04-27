@@ -9,6 +9,7 @@ import (
 	"github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/manifests"
 	"github.com/openshift/hypershift/support/config"
 	component "github.com/openshift/hypershift/support/controlplane-component"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/secretproviderclass"
 	"github.com/openshift/hypershift/support/util"
 
@@ -36,7 +37,7 @@ const (
 )
 
 var (
-	azureKMSVolumeMounts = util.PodVolumeMounts{
+	azureKMSVolumeMounts = podspec.VolumeMounts{
 		KasMainContainerName: {
 			kasVolumeKMSSocket().Name: "/opt",
 		},
@@ -123,19 +124,19 @@ func (p *azureKMSProvider) GenerateKMSPodConfig() (*KMSPodConfig, error) {
 	podConfig := &KMSPodConfig{}
 
 	podConfig.Volumes = append(podConfig.Volumes,
-		util.BuildVolume(kasVolumeAzureKMSCredentials(), buildVolumeAzureKMSCredentials),
-		util.BuildVolume(kasVolumeKMSSocket(), buildVolumeKMSSocket),
-		util.BuildVolume(kasVolumeKMSSecretStore(), buildVolumeKMSSecretStore),
+		podspec.BuildVolume(kasVolumeAzureKMSCredentials(), buildVolumeAzureKMSCredentials),
+		podspec.BuildVolume(kasVolumeKMSSocket(), buildVolumeKMSSocket),
+		podspec.BuildVolume(kasVolumeKMSSecretStore(), buildVolumeKMSSecretStore),
 	)
 
 	podConfig.Containers = append(podConfig.Containers,
-		util.BuildContainer(
+		podspec.BuildContainer(
 			kasContainerAzureKMSActive(),
 			p.buildKASContainerAzureKMS(p.kmsSpec.ActiveKey, azureActiveKMSUnixSocket, azureActiveKMSHealthPort, azureActiveKMSMetricsAddr)),
 	)
 	if p.kmsSpec.BackupKey != nil {
 		podConfig.Containers = append(podConfig.Containers,
-			util.BuildContainer(
+			podspec.BuildContainer(
 				kasContainerAzureKMSBackup(),
 				p.buildKASContainerAzureKMS(*p.kmsSpec.BackupKey, azureBackupKMSUnixSocket, azureBackupKMSHealthPort, azureBackupKMSMetricsAddr)),
 		)

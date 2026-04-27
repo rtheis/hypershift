@@ -17,8 +17,8 @@ import (
 	kas "github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/kas"
 	manifests "github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/manifests"
 	"github.com/openshift/hypershift/support/konnectivityproxy"
+	"github.com/openshift/hypershift/support/podspec"
 	supportproxy "github.com/openshift/hypershift/support/proxy"
-	"github.com/openshift/hypershift/support/util"
 
 	configv1 "github.com/openshift/api/config/v1"
 	osinv1 "github.com/openshift/api/osin/v1"
@@ -60,7 +60,7 @@ type idpData struct {
 
 type IDPVolumeMountInfo struct {
 	Container    string
-	VolumeMounts util.PodVolumeMounts
+	VolumeMounts podspec.VolumeMounts
 	Volumes      []corev1.Volume
 }
 
@@ -92,8 +92,8 @@ func ConvertIdentityProviders(ctx context.Context, identityProviders []configv1.
 	errs := []error{}
 	volumeMountInfo := &IDPVolumeMountInfo{
 		Container: oauthContainerMain().Name,
-		VolumeMounts: util.PodVolumeMounts{
-			oauthContainerMain().Name: util.ContainerVolumeMounts{},
+		VolumeMounts: podspec.VolumeMounts{
+			oauthContainerMain().Name: podspec.ContainerMounts{},
 		},
 	}
 

@@ -8,7 +8,7 @@ import (
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	assets "github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/assets"
 	component "github.com/openshift/hypershift/support/controlplane-component"
-	"github.com/openshift/hypershift/support/util"
+	"github.com/openshift/hypershift/support/podspec"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -67,7 +67,7 @@ func TestAdaptDeployment(t *testing.T) {
 
 			// Verify trust bundle volume configuration
 			if tc.expectTrustBundleVolume {
-				volume := util.FindVolume(tc.expectedVolumeName, deployment.Spec.Template.Spec.Volumes)
+				volume := podspec.FindVolume(tc.expectedVolumeName, deployment.Spec.Template.Spec.Volumes)
 				g.Expect(volume).ToNot(BeNil(), "trust bundle volume should exist")
 				g.Expect(volume.ConfigMap).ToNot(BeNil(), "volume should use ConfigMap source")
 				g.Expect(volume.ConfigMap.Name).To(Equal(tc.expectedConfigMapName))
@@ -76,7 +76,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g.Expect(volume.ConfigMap.Items[0].Path).To(Equal("user-ca-bundle.pem"))
 			} else {
 				// Verify trust bundle volume is NOT present when not configured
-				g.Expect(util.FindVolume("trusted-ca", deployment.Spec.Template.Spec.Volumes)).To(BeNil(), "trust bundle volume should not exist")
+				g.Expect(podspec.FindVolume("trusted-ca", deployment.Spec.Template.Spec.Volumes)).To(BeNil(), "trust bundle volume should not exist")
 			}
 
 			// Verify trust bundle mount on first container (DeploymentAddTrustBundleVolume adds to first container)
@@ -84,7 +84,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g.Expect(deployment.Spec.Template.Spec.Containers).ToNot(BeEmpty(), "deployment should have containers")
 
 				firstContainer := &deployment.Spec.Template.Spec.Containers[0]
-				mount := util.FindVolumeMount(tc.expectedVolumeName, firstContainer.VolumeMounts)
+				mount := podspec.FindVolumeMount(tc.expectedVolumeName, firstContainer.VolumeMounts)
 				g.Expect(mount).ToNot(BeNil(), "trust bundle volume mount should exist on first container")
 				g.Expect(mount.MountPath).To(Equal("/etc/pki/tls/certs"))
 				g.Expect(mount.ReadOnly).To(BeTrue())
@@ -92,7 +92,7 @@ func TestAdaptDeployment(t *testing.T) {
 				// Verify trust bundle mount is NOT present
 				if len(deployment.Spec.Template.Spec.Containers) > 0 {
 					firstContainer := &deployment.Spec.Template.Spec.Containers[0]
-					g.Expect(util.FindVolumeMount("trusted-ca", firstContainer.VolumeMounts)).To(BeNil(), "trust bundle volume mount should not exist")
+					g.Expect(podspec.FindVolumeMount("trusted-ca", firstContainer.VolumeMounts)).To(BeNil(), "trust bundle volume mount should not exist")
 				}
 			}
 		})
@@ -126,19 +126,19 @@ func TestAdaptDeploymentWithProxyEnvVars(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Find haproxy container
-	haproxyContainer := util.FindContainer("haproxy", deployment.Spec.Template.Spec.Containers)
+	haproxyContainer := podspec.FindContainer("haproxy", deployment.Spec.Template.Spec.Containers)
 	g.Expect(haproxyContainer).ToNot(BeNil(), "haproxy container should exist")
 
 	// Verify proxy env vars are set
-	httpProxy := util.FindEnvVar("HTTP_PROXY", haproxyContainer.Env)
+	httpProxy := podspec.FindEnvVar("HTTP_PROXY", haproxyContainer.Env)
 	g.Expect(httpProxy).ToNot(BeNil())
 	g.Expect(httpProxy.Value).To(Equal("http://proxy.example.com:8080"))
 
-	httpsProxy := util.FindEnvVar("HTTPS_PROXY", haproxyContainer.Env)
+	httpsProxy := podspec.FindEnvVar("HTTPS_PROXY", haproxyContainer.Env)
 	g.Expect(httpsProxy).ToNot(BeNil())
 	g.Expect(httpsProxy.Value).To(Equal("https://proxy.example.com:8443"))
 
-	noProxy := util.FindEnvVar("NO_PROXY", haproxyContainer.Env)
+	noProxy := podspec.FindEnvVar("NO_PROXY", haproxyContainer.Env)
 	g.Expect(noProxy).ToNot(BeNil())
 	g.Expect(noProxy.Value).To(ContainSubstring("localhost"))
 	g.Expect(noProxy.Value).To(ContainSubstring("kube-apiserver"))

@@ -11,6 +11,7 @@ import (
 	assets "github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/assets"
 	"github.com/openshift/hypershift/support/config"
 	"github.com/openshift/hypershift/support/metrics"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/upsert"
 	"github.com/openshift/hypershift/support/util"
 
@@ -143,7 +144,7 @@ type controlPlaneWorkload[T client.Object] struct {
 	// if provided, konnectivity proxy container and required volumes will be injected into the deployment/statefulset.
 	konnectivityContainerOpts *KonnectivityContainerOptions
 	// if provided, availabilityProber container and required volumes will be injected into the deployment/statefulset.
-	availabilityProberOpts *util.AvailabilityProberOpts
+	availabilityProberOpts *podspec.AvailabilityProberOpts
 	// if provided, token-minter container and required volumes will be injected into the deployment/statefulset.
 	tokenMinterContainerOpts *TokenMinterContainerOptions
 	// serviceAccountKubeConfigOpts will cause the generation of a secret with a kubeconfig using certificates for the given named service account

@@ -63,6 +63,7 @@ import (
 	"github.com/openshift/hypershift/support/infraid"
 	"github.com/openshift/hypershift/support/metrics"
 	"github.com/openshift/hypershift/support/oidc"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/releaseinfo"
 	"github.com/openshift/hypershift/support/secretproviderclass"
 	"github.com/openshift/hypershift/support/supportedversion"
@@ -1984,7 +1985,7 @@ func (r *HostedClusterReconciler) reconcile(ctx context.Context, req ctrl.Reques
 
 	imageProvider := imageprovider.New(releaseImage)
 	imageProvider.ComponentImages()["token-minter"] = utilitiesImage
-	imageProvider.ComponentImages()[hyperutil.AvailabilityProberImageName] = utilitiesImage
+	imageProvider.ComponentImages()[podspec.AvailabilityProberImageName] = utilitiesImage
 
 	securityContextUID := controlplanecomponent.DefaultSecurityContextUID
 	if r.SetDefaultSecurityContext {

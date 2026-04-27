@@ -9,7 +9,7 @@ import (
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	assets "github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/assets"
 	component "github.com/openshift/hypershift/support/controlplane-component"
-	"github.com/openshift/hypershift/support/util"
+	"github.com/openshift/hypershift/support/podspec"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -157,7 +157,7 @@ func TestAdaptDeployment(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Find the control-plane-pki-operator container
-			pkiContainer := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+			pkiContainer := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 			g.Expect(pkiContainer).ToNot(BeNil(), "control-plane-pki-operator container should exist")
 
 			tc.validate(g, pkiContainer)
@@ -195,7 +195,7 @@ func TestAdaptDeploymentCombinedEnvVars(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Find the control-plane-pki-operator container
-	pkiContainer := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+	pkiContainer := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 	g.Expect(pkiContainer).ToNot(BeNil())
 
 	t.Run("When all configuration is set, it should include all environment variables", func(t *testing.T) {

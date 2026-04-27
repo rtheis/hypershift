@@ -10,6 +10,7 @@ import (
 	"github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/manifests"
 	"github.com/openshift/hypershift/support/config"
 	component "github.com/openshift/hypershift/support/controlplane-component"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/util"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -55,12 +56,12 @@ func adaptDeployment(cpContext component.WorkloadContext, deployment *appsv1.Dep
 		config.AuditWebhookService,
 	}
 
-	util.UpdateContainer(ComponentName, deployment.Spec.Template.Spec.Containers, func(c *corev1.Container) {
+	podspec.UpdateContainer(ComponentName, deployment.Spec.Template.Spec.Containers, func(c *corev1.Container) {
 		if !util.HCPOAuthEnabled(cpContext.HCP) {
 			c.Args = append(c.Args, "--internal-oauth-disabled=true")
 		}
 
-		util.UpsertEnvVar(c, corev1.EnvVar{
+		podspec.UpsertEnvVar(c, corev1.EnvVar{
 			Name:  "NO_PROXY",
 			Value: strings.Join(noProxy, ","),
 		})
@@ -77,7 +78,7 @@ func adaptDeployment(cpContext component.WorkloadContext, deployment *appsv1.Dep
 	})
 
 	if cpContext.HCP.Spec.Configuration.GetAuditPolicyConfig().Profile == configv1.NoneAuditProfileType {
-		util.RemoveContainer("audit-logs", &deployment.Spec.Template.Spec)
+		podspec.RemoveContainer("audit-logs", &deployment.Spec.Template.Spec)
 	}
 
 	serviceServingCA, err := getServiceServingCA(cpContext)
@@ -96,7 +97,7 @@ func adaptDeployment(cpContext component.WorkloadContext, deployment *appsv1.Dep
 			},
 		})
 
-		util.UpdateContainer("oas-trust-anchor-generator", deployment.Spec.Template.Spec.InitContainers, func(c *corev1.Container) {
+		podspec.UpdateContainer("oas-trust-anchor-generator", deployment.Spec.Template.Spec.InitContainers, func(c *corev1.Container) {
 			c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
 				Name:      "kube-controller-manager",
 				MountPath: "/run/service-ca-signer",
@@ -111,7 +112,7 @@ func adaptDeployment(cpContext component.WorkloadContext, deployment *appsv1.Dep
 	kasLivezURL := kas.InClusterKASURL(cpContext.HCP.Spec.Platform.Type) + "/livez"
 	deployment.Spec.Template.Spec.Containers = append(
 		deployment.Spec.Template.Spec.Containers,
-		util.KASReadinessCheckContainer(kasLivezURL),
+		podspec.KASReadinessCheckContainer(kasLivezURL),
 	)
 
 	return nil
@@ -125,7 +126,7 @@ func applyAuditWebhookConfigFileVolume(podSpec *corev1.PodSpec, auditWebhookRef 
 		},
 	})
 
-	util.UpdateContainer(ComponentName, podSpec.Containers, func(c *corev1.Container) {
+	podspec.UpdateContainer(ComponentName, podSpec.Containers, func(c *corev1.Container) {
 		c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
 			Name:      auditWebhookConfigFileVolumeName,
 			MountPath: "/etc/kubernetes/auditwebhook",

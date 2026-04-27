@@ -11,7 +11,7 @@ import (
 	"github.com/openshift/hypershift/api/util/ipnet"
 	"github.com/openshift/hypershift/support/config"
 	component "github.com/openshift/hypershift/support/controlplane-component"
-	"github.com/openshift/hypershift/support/util"
+	"github.com/openshift/hypershift/support/podspec"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -56,7 +56,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g := NewWithT(t)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--cluster-cidr=10.132.0.0/14"))
 				g.Expect(container.Args).To(ContainElement("--service-cluster-ip-range=172.31.0.0/16"))
@@ -87,7 +87,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g := NewWithT(t)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--cloud-provider=external"))
 			},
@@ -115,7 +115,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g := NewWithT(t)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--allocate-node-cidrs=true"))
 			},
@@ -143,7 +143,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g := NewWithT(t)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--allocate-node-cidrs=false"))
 			},
@@ -170,7 +170,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g := NewWithT(t)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--allocate-node-cidrs=false"))
 			},
@@ -200,7 +200,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g := NewWithT(t)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--node-monitor-grace-period=55s"))
 			},
@@ -230,7 +230,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g := NewWithT(t)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--node-monitor-grace-period=50s"))
 			},
@@ -264,7 +264,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g := NewWithT(t)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 
 				tlsProfile := &configv1.TLSSecurityProfile{
@@ -304,7 +304,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g := NewWithT(t)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--profiling=false"))
 			},
@@ -355,7 +355,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g := NewWithT(t)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--feature-gates=FeatureGate1=true"))
 				g.Expect(container.Args).To(ContainElement("--feature-gates=FeatureGate2=false"))
@@ -395,15 +395,15 @@ func TestAdaptDeployment(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				// Check volume is added
-				vol := util.FindVolume("service-serving-ca", deployment.Spec.Template.Spec.Volumes)
+				vol := podspec.FindVolume("service-serving-ca", deployment.Spec.Template.Spec.Volumes)
 				g.Expect(vol).ToNot(BeNil(), "service-serving-ca volume should be added")
 				g.Expect(vol.VolumeSource.ConfigMap).ToNot(BeNil())
 				g.Expect(vol.VolumeSource.ConfigMap.Name).To(Equal("service-serving-ca"))
 
 				// Check volume mount is added
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
-				mount := util.FindVolumeMount("service-serving-ca", container.VolumeMounts)
+				mount := podspec.FindVolumeMount("service-serving-ca", container.VolumeMounts)
 				g.Expect(mount).ToNot(BeNil(), "service-serving-ca volume mount should be added")
 				g.Expect(mount.MountPath).To(Equal("/etc/kubernetes/certs/service-ca"))
 			},
@@ -432,12 +432,12 @@ func TestAdaptDeployment(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				// Check volume is not added
-				g.Expect(util.FindVolume("service-serving-ca", deployment.Spec.Template.Spec.Volumes)).To(BeNil())
+				g.Expect(podspec.FindVolume("service-serving-ca", deployment.Spec.Template.Spec.Volumes)).To(BeNil())
 
 				// Check volume mount is not added
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
-				g.Expect(util.FindVolumeMount("service-serving-ca", container.VolumeMounts)).To(BeNil())
+				g.Expect(podspec.FindVolumeMount("service-serving-ca", container.VolumeMounts)).To(BeNil())
 			},
 		},
 	}

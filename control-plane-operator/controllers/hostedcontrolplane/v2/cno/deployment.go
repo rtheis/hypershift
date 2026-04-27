@@ -9,6 +9,7 @@ import (
 	"github.com/openshift/hypershift/support/azureutil"
 	"github.com/openshift/hypershift/support/config"
 	component "github.com/openshift/hypershift/support/controlplane-component"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/proxy"
 	"github.com/openshift/hypershift/support/rhobsmonitoring"
 	"github.com/openshift/hypershift/support/util"
@@ -22,15 +23,15 @@ import (
 
 func adaptDeployment(cpContext component.WorkloadContext, deployment *appsv1.Deployment) error {
 	cnoEnvVars := buildCNOEnvVars(cpContext)
-	util.UpdateContainer(ComponentName, deployment.Spec.Template.Spec.Containers, func(c *corev1.Container) {
+	podspec.UpdateContainer(ComponentName, deployment.Spec.Template.Spec.Containers, func(c *corev1.Container) {
 		c.Env = append(c.Env, cnoEnvVars...)
 	})
 
-	util.UpdateContainer("client-token-minter", deployment.Spec.Template.Spec.Containers, func(c *corev1.Container) {
+	podspec.UpdateContainer("client-token-minter", deployment.Spec.Template.Spec.Containers, func(c *corev1.Container) {
 		c.Args = append(c.Args, "--token-audience", cpContext.HCP.Spec.IssuerURL)
 	})
 
-	util.UpdateContainer("init-client-token-minter", deployment.Spec.Template.Spec.InitContainers, func(c *corev1.Container) {
+	podspec.UpdateContainer("init-client-token-minter", deployment.Spec.Template.Spec.InitContainers, func(c *corev1.Container) {
 		c.Args = append(c.Args, "--token-audience", cpContext.HCP.Spec.IssuerURL)
 	})
 
