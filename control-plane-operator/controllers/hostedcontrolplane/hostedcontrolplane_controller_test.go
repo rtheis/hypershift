@@ -72,6 +72,7 @@ import (
 )
 
 func TestReconcileKubeadminPassword(t *testing.T) {
+	t.Parallel()
 	targetNamespace := "test"
 
 	testsCases := []struct {
@@ -353,6 +354,7 @@ func TestReconcileIgnitionServer(t *testing.T) {
 }
 
 func TestEtcdRestoredCondition(t *testing.T) {
+	t.Parallel()
 	testsCases := []struct {
 		name              string
 		sts               *appsv1.StatefulSet
@@ -792,6 +794,7 @@ func (c *createTrackingWorkqueue) Add(item reconcile.Request) {
 }
 
 func TestNonReadyInfraTriggersRequeueAfter(t *testing.T) {
+	t.Parallel()
 	mockCtrl := gomock.NewController(t)
 	mockedProviderWithOpenshiftImageRegistryOverrides := releaseinfo.NewMockProviderWithOpenShiftImageRegistryOverrides(mockCtrl)
 	mockedProviderWithOpenshiftImageRegistryOverrides.EXPECT().
@@ -1313,6 +1316,7 @@ func TestControlPlaneComponents(t *testing.T) {
 }
 
 func TestAWSSecurityGroupTags(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		hcp          *hyperv1.HostedControlPlane
@@ -1540,6 +1544,7 @@ func componentsFakeDependencies(componentName string, namespace string) []client
 }
 
 func TestControlPlaneComponentsAvailable(t *testing.T) {
+	t.Parallel()
 	testNamespace := "test-namespace"
 
 	testCases := []struct {
@@ -1774,6 +1779,7 @@ func TestControlPlaneComponentsAvailable(t *testing.T) {
 }
 
 func TestRemoveHCPIngressFromRoutes(t *testing.T) {
+	t.Parallel()
 	const namespace = "test-ns"
 
 	tests := []struct {
@@ -2202,6 +2208,7 @@ func TestRemoveHCPIngressFromRoutes(t *testing.T) {
 }
 
 func TestReconcileAvailabilityStatus(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                      string
 		conditions                []metav1.Condition
@@ -2472,6 +2479,7 @@ func TestReconcileAvailabilityStatus(t *testing.T) {
 }
 
 func TestEtcdStatefulSetCondition(t *testing.T) {
+	t.Parallel()
 	testNamespace := "test-namespace"
 
 	testCases := []struct {

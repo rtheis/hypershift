@@ -107,6 +107,7 @@ func (rp fakeReleaseProvider) GetMetadataProvider() hyperutil.ImageMetadataProvi
 }
 
 func TestHasBeenAvailable(t *testing.T) {
+	t.Parallel()
 	mockCtrl := gomock.NewController(t)
 	now := time.Now().Truncate(time.Second)
 	reconcilerNow := metav1.Time{Time: now.Add(time.Second)}
@@ -251,6 +252,7 @@ func TestHasBeenAvailable(t *testing.T) {
 }
 
 func TestReconcileHostedControlPlaneAdditionalTrustBundle(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                          string
 		cluster                       hyperv1.HostedCluster
@@ -308,6 +310,7 @@ func TestReconcileHostedControlPlaneAdditionalTrustBundle(t *testing.T) {
 }
 
 func TestReconcileHostedControlPlaneUpgrades(t *testing.T) {
+	t.Parallel()
 	// TODO: the spec/status comparison of control plane is a weak check; the
 	// conditions should give us more information about e.g. whether that
 	// image ever _will_ be achieved (e.g. if the problem is fatal)
@@ -411,6 +414,7 @@ func TestReconcileHostedControlPlaneUpgrades(t *testing.T) {
 }
 
 func TestComputeHostedClusterAvailability(t *testing.T) {
+	t.Parallel()
 	tests := map[string]struct {
 		Cluster           hyperv1.HostedCluster
 		ControlPlane      *hyperv1.HostedControlPlane
@@ -494,6 +498,7 @@ func TestComputeHostedClusterAvailability(t *testing.T) {
 }
 
 func TestReconcileHostedControlPlaneAPINetwork(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                        string
 		networking                  *hyperv1.APIServerNetworking
@@ -554,6 +559,7 @@ func TestReconcileHostedControlPlaneAPINetwork(t *testing.T) {
 }
 
 func TestReconcileHostedControlPlaneConfiguration(t *testing.T) {
+	t.Parallel()
 	idp := configv1.IdentityProvider{
 		Name: "htpasswd",
 		IdentityProviderConfig: configv1.IdentityProviderConfig{
@@ -604,6 +610,7 @@ func TestReconcileHostedControlPlaneConfiguration(t *testing.T) {
 }
 
 func TestReconcileHostedControlPlaneAnnotations(t *testing.T) {
+	t.Parallel()
 	type testCase struct {
 		name                              string
 		hcpAnnotations                    map[string]string
@@ -851,6 +858,7 @@ func TestReconcileHostedControlPlaneAnnotations(t *testing.T) {
 }
 
 func TestAnnotationsForCertRenewal(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		shouldSkip       bool
@@ -923,6 +931,7 @@ func TestAnnotationsForCertRenewal(t *testing.T) {
 }
 
 func TestShouldCheckForStaleCerts(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		hcAnnotations  map[string]string
@@ -974,6 +983,7 @@ func TestShouldCheckForStaleCerts(t *testing.T) {
 }
 
 func TestServiceFirstNodePortAvailable(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		inputService      *corev1.Service
@@ -1034,6 +1044,7 @@ func TestServiceFirstNodePortAvailable(t *testing.T) {
 }
 
 func TestServicePublishingStrategyByType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                              string
 		inputHostedCluster                *hyperv1.HostedCluster
@@ -1095,6 +1106,7 @@ func TestServicePublishingStrategyByType(t *testing.T) {
 }
 
 func TestReconcileCAPICluster(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name               string
 		capiCluster        *v1beta1.Cluster
@@ -1234,6 +1246,7 @@ func TestReconcileCAPICluster(t *testing.T) {
 }
 
 func TestReconcileAWSResourceTags(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		in       hyperv1.HostedClusterSpec
@@ -1834,6 +1847,7 @@ func TestHostedClusterWatchesEverythingItCreates(t *testing.T) {
 }
 
 func TestReconcileCLISecrets(t *testing.T) {
+	t.Parallel()
 	const (
 		infraID = "infraId"
 		ns      = "myns"
@@ -2041,6 +2055,7 @@ func (c *createTypeTrackingClient) Create(ctx context.Context, obj crclient.Obje
 }
 
 func TestValidateConfigAndClusterCapabilities(t *testing.T) {
+	t.Parallel()
 
 	// For network test below.
 	clusterNet := make([]hyperv1.ClusterNetworkEntry, 2)
@@ -2255,6 +2270,7 @@ func TestValidateConfigAndClusterCapabilities(t *testing.T) {
 }
 
 func TestValidateReleaseImage(t *testing.T) {
+	t.Parallel()
 	mockCtrl := gomock.NewController(t)
 	testCases := []struct {
 		name                  string
@@ -2677,6 +2693,7 @@ var equateErrorMessage = cmp.FilterValues(func(x, y interface{}) bool {
 }))
 
 func TestPauseHostedControlPlane(t *testing.T) {
+	t.Parallel()
 	fakePauseAnnotationValue := "true"
 	fakeHCPName := "cluster1"
 	fakeHCPNamespace := "master-cluster1"
@@ -2733,6 +2750,7 @@ func TestPauseHostedControlPlane(t *testing.T) {
 }
 
 func TestPauseCAPICluster(t *testing.T) {
+	t.Parallel()
 	fakeHCName := "cluster1"
 	fakeHCNamespace := "master"
 	fakeInfraID := "infra-123"
@@ -2885,6 +2903,7 @@ func TestPauseCAPICluster(t *testing.T) {
 }
 
 func TestDefaultClusterIDsIfNeeded(t *testing.T) {
+	t.Parallel()
 	testHC := func(infraID, clusterID string) *hyperv1.HostedCluster {
 		return &hyperv1.HostedCluster{
 			ObjectMeta: metav1.ObjectMeta{
@@ -2945,6 +2964,7 @@ func TestDefaultClusterIDsIfNeeded(t *testing.T) {
 }
 
 func TestIsUpgradeable(t *testing.T) {
+	t.Parallel()
 	mockCtrl := gomock.NewController(t)
 	releaseImageFrom := "image-4.13"
 	releaseImageTo := "image-4.14"
@@ -3183,6 +3203,7 @@ func TestIsUpgradeable(t *testing.T) {
 }
 
 func TestReconciliationSuccessConditionSetting(t *testing.T) {
+	t.Parallel()
 
 	// Serialization seems to round to seconds, so we have to do the
 	// same to be able to compare.
@@ -3332,6 +3353,7 @@ func TestReconciliationSuccessConditionSetting(t *testing.T) {
 }
 
 func TestIsProgressing(t *testing.T) {
+	t.Parallel()
 	mockCtrl := gomock.NewController(t)
 	tests := []struct {
 		name       string
@@ -3588,6 +3610,7 @@ func TestIsProgressing(t *testing.T) {
 }
 
 func TestComputeAWSEndpointServiceCondition(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                string
 		endpointAConditions []metav1.Condition
@@ -3727,6 +3750,7 @@ func TestComputeAWSEndpointServiceCondition(t *testing.T) {
 }
 
 func TestValidateSliceNetworkCIDRs(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		mn          []hyperv1.MachineNetworkEntry
@@ -3917,6 +3941,7 @@ func TestValidateSliceNetworkCIDRs(t *testing.T) {
 }
 
 func TestCheckAdvertiseAddressOverlapping(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		mn      []hyperv1.MachineNetworkEntry
@@ -3989,6 +4014,7 @@ func TestCheckAdvertiseAddressOverlapping(t *testing.T) {
 }
 
 func TestFindAdvertiseAddress(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		aa               *hyperv1.APIServerNetworking
@@ -4058,6 +4084,7 @@ func TestFindAdvertiseAddress(t *testing.T) {
 }
 
 func TestValidateNetworkStackAddresses(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		cn      []hyperv1.ClusterNetworkEntry
@@ -4170,6 +4197,7 @@ func TestValidateNetworkStackAddresses(t *testing.T) {
 }
 
 func TestKubevirtETCDEncKey(t *testing.T) {
+	t.Parallel()
 	for _, testCase := range []struct {
 		name           string
 		hc             *hyperv1.HostedCluster
@@ -4617,6 +4645,7 @@ func TestKubevirtETCDEncKey(t *testing.T) {
 }
 
 func TestReconcileComponents(t *testing.T) {
+	t.Parallel()
 	mockCtrl := gomock.NewController(t)
 	mockedProviderWithOpenshiftImageRegistryOverrides := releaseinfo.NewMockProviderWithOpenShiftImageRegistryOverrides(mockCtrl)
 	mockedProviderWithOpenshiftImageRegistryOverrides.EXPECT().
@@ -4855,6 +4884,7 @@ func TestEnsureHostedResourcesAreEmpty(t *testing.T) {
 }
 
 func TestReconcileAdditionalTrustBundle(t *testing.T) {
+	t.Parallel()
 	const (
 		testNamespace            = "test-ns"
 		controlPlaneNamespace    = "test-hcp-ns"
@@ -5027,6 +5057,7 @@ func TestReconcileAdditionalTrustBundle(t *testing.T) {
 }
 
 func TestValidateNodePortVsServiceNetwork(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name              string
 		hostedCluster     *hyperv1.HostedCluster
@@ -5079,6 +5110,7 @@ func TestValidateNodePortVsServiceNetwork(t *testing.T) {
 }
 
 func TestParseNodePortRange(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name        string
 		rangeStr    string
@@ -5183,6 +5215,7 @@ func TestParseNodePortRange(t *testing.T) {
 }
 
 func TestValidateNodePortPortRange(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name              string
 		hostedCluster     *hyperv1.HostedCluster
@@ -5403,6 +5436,7 @@ func TestValidateNodePortPortRange(t *testing.T) {
 }
 
 func TestServiceAccountSigningKeyBytes(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	// Helper function to generate a test RSA key pair
@@ -5579,6 +5613,7 @@ func TestServiceAccountSigningKeyBytes(t *testing.T) {
 }
 
 func TestIsAWSNodeTerminationHandlerNeeded(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name           string
 		hcluster       *hyperv1.HostedCluster
@@ -5829,6 +5864,7 @@ func TestIsAWSNodeTerminationHandlerNeeded(t *testing.T) {
 }
 
 func TestComputeGCPPSCCondition(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		pscConditions []metav1.Condition
@@ -5991,6 +6027,7 @@ func TestComputeGCPPSCCondition(t *testing.T) {
 }
 
 func TestReconcileCustomExternalKubeconfig(t *testing.T) {
+	t.Parallel()
 	hcpNamespace := "test-hcp-ns"
 	hclusterNamespace := "test-hc-ns"
 	hclusterName := "test-cluster"
@@ -6091,6 +6128,7 @@ func TestReconcileCustomExternalKubeconfig(t *testing.T) {
 }
 
 func TestComputeAzurePLSCondition(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		plsConditions []metav1.Condition
@@ -6392,6 +6430,7 @@ func TestValidateAzureConfig(t *testing.T) {
 }
 
 func TestComputeEndpointServiceCondition(t *testing.T) {
+	t.Parallel()
 	g := NewGomegaWithT(t)
 
 	const (
