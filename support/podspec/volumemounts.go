@@ -1,4 +1,4 @@
-package util
+package podspec
 
 import (
 	"fmt"
@@ -7,10 +7,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-type ContainerVolumeMounts map[string]string
-type PodVolumeMounts map[string]ContainerVolumeMounts
+type ContainerMounts map[string]string
+type VolumeMounts map[string]ContainerMounts
 
-func (m PodVolumeMounts) Path(container, volume string) string {
+func (m VolumeMounts) Path(container, volume string) string {
 	containerMounts, ok := m[container]
 	if !ok {
 		panic(fmt.Sprintf("invalid pod container %s used when looking for mount", container))
@@ -22,7 +22,7 @@ func (m PodVolumeMounts) Path(container, volume string) string {
 	return mountPath
 }
 
-func (m PodVolumeMounts) ContainerMounts(container string) []corev1.VolumeMount {
+func (m VolumeMounts) ContainerMounts(container string) []corev1.VolumeMount {
 	result := []corev1.VolumeMount{}
 	containerMounts, ok := m[container]
 	if !ok {
