@@ -512,8 +512,9 @@ func run(ctx context.Context, opts *StartOptions, log logr.Logger) error {
 	switch hyperv1.PlatformType(opts.PrivatePlatform) {
 	case hyperv1.AWSPlatform:
 		if err := (&aws.AWSEndpointServiceReconciler{
-			Client:                 mgr.GetClient(),
-			CreateOrUpdateProvider: createOrUpdate,
+			Client:                        mgr.GetClient(),
+			CreateOrUpdateProvider:        createOrUpdate,
+			ManagementClusterCapabilities: mgmtClusterCaps,
 		}).SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("unable to create controller: %w", err)
 		}
