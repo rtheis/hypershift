@@ -1,8 +1,10 @@
-package v1beta1
+package nodeclass
 
 import (
 	"fmt"
 	"strings"
+
+	hyperkarpenterv1 "github.com/openshift/hypershift/api/karpenter/v1beta1"
 
 	awskarpenterv1 "github.com/aws/karpenter-provider-aws/pkg/apis/v1"
 
@@ -10,7 +12,7 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-func (spec OpenshiftEC2NodeClassSpec) KarpenterBlockDeviceMapping() []*awskarpenterv1.BlockDeviceMapping {
+func karpenterBlockDeviceMappingFromNodeClassSpec(spec hyperkarpenterv1.OpenshiftEC2NodeClassSpec) []*awskarpenterv1.BlockDeviceMapping {
 	if spec.BlockDeviceMappings == nil {
 		return nil
 	}
@@ -18,15 +20,15 @@ func (spec OpenshiftEC2NodeClassSpec) KarpenterBlockDeviceMapping() []*awskarpen
 	for _, mapping := range spec.BlockDeviceMappings {
 		blockDeviceMapping = append(blockDeviceMapping, &awskarpenterv1.BlockDeviceMapping{
 			DeviceName: ptrIfNonEmpty(mapping.DeviceName),
-			RootVolume: mapping.RootVolume == RootVolumeDesignationRootVolume,
-			EBS:        mapping.EBS.ToKarpenterTypes(),
+			RootVolume: mapping.RootVolume == hyperkarpenterv1.RootVolumeDesignationRootVolume,
+			EBS:        karpenterBlockDeviceFromBlockDevice(mapping.EBS),
 		})
 	}
 
 	return blockDeviceMapping
 }
 
-func (spec OpenshiftEC2NodeClassSpec) KarpenterCapacityReservationSelectorTerms() []awskarpenterv1.CapacityReservationSelectorTerm {
+func karpenterCapacityReservationSelectorTermsFromNodeClassSpec(spec hyperkarpenterv1.OpenshiftEC2NodeClassSpec) []awskarpenterv1.CapacityReservationSelectorTerm {
 	if spec.CapacityReservationSelectorTerms == nil {
 		return nil
 	}
@@ -44,66 +46,66 @@ func (spec OpenshiftEC2NodeClassSpec) KarpenterCapacityReservationSelectorTerms(
 	return terms
 }
 
-func (spec OpenshiftEC2NodeClassSpec) KarpenterInstanceStorePolicy() *awskarpenterv1.InstanceStorePolicy {
+func karpenterInstanceStorePolicyFromNodeClassSpec(spec hyperkarpenterv1.OpenshiftEC2NodeClassSpec) *awskarpenterv1.InstanceStorePolicy {
 	if spec.InstanceStorePolicy == "" {
 		return nil
 	}
 	return (*awskarpenterv1.InstanceStorePolicy)(&spec.InstanceStorePolicy)
 }
 
-func (spec OpenshiftEC2NodeClassSpec) KarpenterAssociatePublicIPAddress() *bool {
+func karpenterAssociatePublicIPAddressFromNodeClassSpec(spec hyperkarpenterv1.OpenshiftEC2NodeClassSpec) *bool {
 	switch spec.IPAddressAssociation {
-	case IPAddressAssociationPublic:
+	case hyperkarpenterv1.IPAddressAssociationPublic:
 		return ptr.To(true)
-	case IPAddressAssociationSubnetDefault:
+	case hyperkarpenterv1.IPAddressAssociationSubnetDefault:
 		return ptr.To(false)
 	default:
 		return nil
 	}
 }
 
-func (spec OpenshiftEC2NodeClassSpec) KarpenterMetadataOptions() *awskarpenterv1.MetadataOptions {
+func karpenterMetadataOptionsFromNodeClassSpec(spec hyperkarpenterv1.OpenshiftEC2NodeClassSpec) *awskarpenterv1.MetadataOptions {
 	mo := spec.MetadataOptions
 	if mo.Access == "" && mo.HTTPIPProtocol == "" && mo.HTTPPutResponseHopLimit == 0 && mo.HTTPTokens == "" {
 		return nil
 	}
 	opts := &awskarpenterv1.MetadataOptions{}
 	switch mo.Access {
-	case MetadataAccessHTTPEndpoint:
+	case hyperkarpenterv1.MetadataAccessHTTPEndpoint:
 		opts.HTTPEndpoint = ptr.To("enabled")
-	case MetadataAccessNone:
+	case hyperkarpenterv1.MetadataAccessNone:
 		opts.HTTPEndpoint = ptr.To("disabled")
 	}
 	switch mo.HTTPIPProtocol {
-	case MetadataHTTPProtocolIPv6:
+	case hyperkarpenterv1.MetadataHTTPProtocolIPv6:
 		opts.HTTPProtocolIPv6 = ptr.To("enabled")
-	case MetadataHTTPProtocolIPv4:
+	case hyperkarpenterv1.MetadataHTTPProtocolIPv4:
 		opts.HTTPProtocolIPv6 = ptr.To("disabled")
 	}
 	if mo.HTTPPutResponseHopLimit != 0 {
 		opts.HTTPPutResponseHopLimit = ptr.To(mo.HTTPPutResponseHopLimit)
 	}
 	switch mo.HTTPTokens {
-	case MetadataHTTPTokensStateRequired:
+	case hyperkarpenterv1.MetadataHTTPTokensStateRequired:
 		opts.HTTPTokens = ptr.To("required")
-	case MetadataHTTPTokensStateOptional:
+	case hyperkarpenterv1.MetadataHTTPTokensStateOptional:
 		opts.HTTPTokens = ptr.To("optional")
 	}
 	return opts
 }
 
-func (spec OpenshiftEC2NodeClassSpec) KarpenterDetailedMonitoring() *bool {
+func karpenterDetailedMonitoringFromNodeClassSpec(spec hyperkarpenterv1.OpenshiftEC2NodeClassSpec) *bool {
 	switch spec.Monitoring {
-	case MonitoringStateDetailed:
+	case hyperkarpenterv1.MonitoringStateDetailed:
 		return ptr.To(true)
-	case MonitoringStateBasic:
+	case hyperkarpenterv1.MonitoringStateBasic:
 		return ptr.To(false)
 	default:
 		return nil
 	}
 }
 
-func (bd BlockDevice) ToKarpenterTypes() *awskarpenterv1.BlockDevice {
+func karpenterBlockDeviceFromBlockDevice(bd hyperkarpenterv1.BlockDevice) *awskarpenterv1.BlockDevice {
 	return &awskarpenterv1.BlockDevice{
 		DeleteOnTermination: deleteOnTerminationToBool(bd.DeleteOnTermination),
 		Encrypted:           encryptionStateToBool(bd.Encrypted),
@@ -116,22 +118,22 @@ func (bd BlockDevice) ToKarpenterTypes() *awskarpenterv1.BlockDevice {
 	}
 }
 
-func deleteOnTerminationToBool(policy DeleteOnTerminationPolicy) *bool {
+func deleteOnTerminationToBool(policy hyperkarpenterv1.DeleteOnTerminationPolicy) *bool {
 	switch policy {
-	case DeleteOnTerminationPolicyDelete:
+	case hyperkarpenterv1.DeleteOnTerminationPolicyDelete:
 		return ptr.To(true)
-	case DeleteOnTerminationPolicyRetain:
+	case hyperkarpenterv1.DeleteOnTerminationPolicyRetain:
 		return ptr.To(false)
 	default:
 		return nil
 	}
 }
 
-func encryptionStateToBool(state EncryptionState) *bool {
+func encryptionStateToBool(state hyperkarpenterv1.EncryptionState) *bool {
 	switch state {
-	case EncryptionStateEncrypted:
+	case hyperkarpenterv1.EncryptionStateEncrypted:
 		return ptr.To(true)
-	case EncryptionStateUnencrypted:
+	case hyperkarpenterv1.EncryptionStateUnencrypted:
 		return ptr.To(false)
 	default:
 		return nil
@@ -146,7 +148,7 @@ func volumeSizeGiBToQuantity(sizeGiB int64) *resource.Quantity {
 	return &q
 }
 
-func volumeTypeToKarpenter(vt VolumeType) *string {
+func volumeTypeToKarpenter(vt hyperkarpenterv1.VolumeType) *string {
 	if vt == "" {
 		return nil
 	}

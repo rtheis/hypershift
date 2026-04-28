@@ -285,13 +285,13 @@ func reconcileEC2NodeClass(ctx context.Context, ec2NodeClass *awskarpenterv1.EC2
 		UserData:                         ptr.To(string(userDataSecret.Data["value"])),
 		AMIFamily:                        ptr.To("Custom"),
 		AMISelectorTerms:                 amiSelectorTerms,
-		AssociatePublicIPAddress:         openshiftEC2NodeClass.Spec.KarpenterAssociatePublicIPAddress(),
+		AssociatePublicIPAddress:         karpenterAssociatePublicIPAddressFromNodeClassSpec(openshiftEC2NodeClass.Spec),
 		Tags:                             mergeEC2NodeClassTags(ctx, openshiftEC2NodeClass, hcp),
-		DetailedMonitoring:               openshiftEC2NodeClass.Spec.KarpenterDetailedMonitoring(),
-		BlockDeviceMappings:              openshiftEC2NodeClass.Spec.KarpenterBlockDeviceMapping(),
-		InstanceStorePolicy:              openshiftEC2NodeClass.Spec.KarpenterInstanceStorePolicy(),
-		MetadataOptions:                  openshiftEC2NodeClass.Spec.KarpenterMetadataOptions(),
-		CapacityReservationSelectorTerms: openshiftEC2NodeClass.Spec.KarpenterCapacityReservationSelectorTerms(),
+		DetailedMonitoring:               karpenterDetailedMonitoringFromNodeClassSpec(openshiftEC2NodeClass.Spec),
+		BlockDeviceMappings:              karpenterBlockDeviceMappingFromNodeClassSpec(openshiftEC2NodeClass.Spec),
+		InstanceStorePolicy:              karpenterInstanceStorePolicyFromNodeClassSpec(openshiftEC2NodeClass.Spec),
+		MetadataOptions:                  karpenterMetadataOptionsFromNodeClassSpec(openshiftEC2NodeClass.Spec),
+		CapacityReservationSelectorTerms: karpenterCapacityReservationSelectorTermsFromNodeClassSpec(openshiftEC2NodeClass.Spec),
 	}
 
 	// Set instance profile from HostedCluster annotation (platform-controlled)
