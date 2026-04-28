@@ -11,6 +11,7 @@ import (
 	"github.com/openshift/hypershift/support/certs"
 	"github.com/openshift/hypershift/support/config"
 	component "github.com/openshift/hypershift/support/controlplane-component"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/util"
 
 	corev1 "k8s.io/api/core/v1"
@@ -22,7 +23,7 @@ import (
 )
 
 const (
-	KubeconfigKey = util.KubeconfigKey
+	KubeconfigKey = podspec.KubeconfigKey
 )
 
 func adaptServiceKubeconfigSecret(cpContext component.WorkloadContext, secret *corev1.Secret) error {

@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
-	supportutil "github.com/openshift/hypershift/support/util"
+	"github.com/openshift/hypershift/support/podspec"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -533,7 +533,7 @@ func validateControlPlaneWorkloadsByType(testCtx *TestContext, workloadTypes []s
 			if err != nil {
 				return fmt.Errorf("failed to get deployment %s: %w", workload.Name, err)
 			}
-			if !supportutil.IsDeploymentReady(testCtx, deployment) {
+			if !podspec.IsDeploymentReady(testCtx, deployment) {
 				desired := int32(0)
 				if deployment.Spec.Replicas != nil {
 					desired = *deployment.Spec.Replicas
@@ -551,7 +551,7 @@ func validateControlPlaneWorkloadsByType(testCtx *TestContext, workloadTypes []s
 			if err != nil {
 				return fmt.Errorf("failed to get statefulset %s: %w", workload.Name, err)
 			}
-			if !supportutil.IsStatefulSetReady(testCtx, statefulSet) {
+			if !podspec.IsStatefulSetReady(testCtx, statefulSet) {
 				desired := int32(0)
 				if statefulSet.Spec.Replicas != nil {
 					desired = *statefulSet.Spec.Replicas

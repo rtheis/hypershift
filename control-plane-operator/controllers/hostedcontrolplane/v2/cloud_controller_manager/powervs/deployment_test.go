@@ -8,7 +8,7 @@ import (
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	assets "github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/assets"
 	component "github.com/openshift/hypershift/support/controlplane-component"
-	"github.com/openshift/hypershift/support/util"
+	"github.com/openshift/hypershift/support/podspec"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -64,7 +64,7 @@ func TestAdaptDeployment(t *testing.T) {
 		err := adaptDeployment(cpContext, deployment)
 		g.Expect(err).ToNot(HaveOccurred())
 
-		cloudCredsVol := util.FindVolume(cloudCredsVolumeName, deployment.Spec.Template.Spec.Volumes)
+		cloudCredsVol := podspec.FindVolume(cloudCredsVolumeName, deployment.Spec.Template.Spec.Volumes)
 		g.Expect(cloudCredsVol).ToNot(BeNil(), "cloud-creds volume should exist")
 		g.Expect(cloudCredsVol.Secret.SecretName).To(Equal("my-cloud-creds-secret"))
 	})
@@ -135,15 +135,15 @@ func TestAdaptDeployment(t *testing.T) {
 
 		g.Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(3))
 
-		otherVol := util.FindVolume("other-volume", deployment.Spec.Template.Spec.Volumes)
+		otherVol := podspec.FindVolume("other-volume", deployment.Spec.Template.Spec.Volumes)
 		g.Expect(otherVol).ToNot(BeNil(), "other-volume should exist")
 		g.Expect(otherVol.Secret.SecretName).To(Equal("other-secret"))
 
-		cloudCredsVol := util.FindVolume(cloudCredsVolumeName, deployment.Spec.Template.Spec.Volumes)
+		cloudCredsVol := podspec.FindVolume(cloudCredsVolumeName, deployment.Spec.Template.Spec.Volumes)
 		g.Expect(cloudCredsVol).ToNot(BeNil(), "cloud-creds volume should exist")
 		g.Expect(cloudCredsVol.Secret.SecretName).To(Equal("updated-creds"))
 
-		anotherVol := util.FindVolume("yet-another-volume", deployment.Spec.Template.Spec.Volumes)
+		anotherVol := podspec.FindVolume("yet-another-volume", deployment.Spec.Template.Spec.Volumes)
 		g.Expect(anotherVol).ToNot(BeNil(), "yet-another-volume should exist")
 		g.Expect(anotherVol.ConfigMap.Name).To(Equal("some-configmap"))
 	})
@@ -232,7 +232,7 @@ func TestAdaptDeploymentWithAssets(t *testing.T) {
 		g.Expect(err).ToNot(HaveOccurred())
 
 		// Find the cloud-creds volume and verify it was updated
-		cloudCredsVol := util.FindVolume(cloudCredsVolumeName, deployment.Spec.Template.Spec.Volumes)
+		cloudCredsVol := podspec.FindVolume(cloudCredsVolumeName, deployment.Spec.Template.Spec.Volumes)
 		g.Expect(cloudCredsVol).ToNot(BeNil(), "cloud-creds volume should exist in deployment")
 		g.Expect(cloudCredsVol.Secret.SecretName).To(Equal("asset-test-creds"))
 	})

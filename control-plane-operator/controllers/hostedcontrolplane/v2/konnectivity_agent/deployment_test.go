@@ -11,7 +11,7 @@ import (
 	"github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/assets"
 	"github.com/openshift/hypershift/support/api"
 	component "github.com/openshift/hypershift/support/controlplane-component"
-	"github.com/openshift/hypershift/support/util"
+	"github.com/openshift/hypershift/support/podspec"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -142,7 +142,7 @@ func TestAdaptDeployment(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Verify container exists
-			konnectivityContainer := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+			konnectivityContainer := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 			g.Expect(konnectivityContainer).ToNot(BeNil(), "konnectivity-agent container should exist")
 
 			// Verify image

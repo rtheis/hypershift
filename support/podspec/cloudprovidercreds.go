@@ -1,4 +1,4 @@
-package util
+package podspec
 
 import (
 	"fmt"
@@ -14,15 +14,15 @@ const (
 	AWSCloudProviderName     = "aws"
 )
 
-func cloudProviderCredsVolumeMount(containerName string) PodVolumeMounts {
-	return PodVolumeMounts{
+func cloudProviderCredsVolumeMount(containerName string) VolumeMounts {
+	return VolumeMounts{
 		containerName: {
 			cloudProviderCredsVolume().Name: "/etc/kubernetes/secrets/cloud-provider",
 		},
 	}
 }
-func cloudProviderTokenVolumeMount(containerName string) PodVolumeMounts {
-	return PodVolumeMounts{
+func cloudProviderTokenVolumeMount(containerName string) VolumeMounts {
+	return VolumeMounts{
 		containerName: {
 			cloudProviderTokenVolume().Name: "/var/run/secrets/openshift/serviceaccount",
 		},

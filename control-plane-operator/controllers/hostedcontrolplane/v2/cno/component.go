@@ -9,6 +9,7 @@ import (
 	oapiv2 "github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/oapi"
 	"github.com/openshift/hypershift/support/azureutil"
 	component "github.com/openshift/hypershift/support/controlplane-component"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/util"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -63,7 +64,7 @@ func NewComponent() component.ControlPlaneComponent {
 			},
 			KubeconfingVolumeName: "hosted-etc-kube",
 		}).
-		InjectAvailabilityProberContainer(util.AvailabilityProberOpts{
+		InjectAvailabilityProberContainer(podspec.AvailabilityProberOpts{
 			KubeconfigVolumeName: "hosted-etc-kube",
 			RequiredAPIs: []schema.GroupVersionKind{
 				{Group: "operator.openshift.io", Version: "v1", Kind: "Network"},
@@ -180,7 +181,7 @@ func checkOperandsRolloutStatus(cpContext component.WorkloadContext) (bool, erro
 			}
 		}
 
-		if !util.IsDeploymentReady(cpContext, deployment) {
+		if !podspec.IsDeploymentReady(cpContext, deployment) {
 			errs = append(errs, fmt.Errorf("deployment %s is not ready", operand.DeploymentName))
 		}
 	}

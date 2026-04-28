@@ -7,7 +7,7 @@ import (
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	"github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/kas/kms"
 	"github.com/openshift/hypershift/support/api"
-	"github.com/openshift/hypershift/support/util"
+	"github.com/openshift/hypershift/support/podspec"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -28,7 +28,7 @@ func applyKMSConfig(podSpec *corev1.PodSpec, secretEncryptionData *hyperv1.Secre
 
 	podSpec.Containers = append(podSpec.Containers, kmsPodConfig.Containers...)
 	podSpec.Volumes = append(podSpec.Volumes, kmsPodConfig.Volumes...)
-	util.UpdateContainer(ComponentName, podSpec.Containers, kmsPodConfig.KASContainerMutate)
+	podspec.UpdateContainer(ComponentName, podSpec.Containers, kmsPodConfig.KASContainerMutate)
 
 	return nil
 }

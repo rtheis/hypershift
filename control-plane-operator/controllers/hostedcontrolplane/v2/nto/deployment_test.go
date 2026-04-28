@@ -8,8 +8,8 @@ import (
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	"github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/assets"
 	component "github.com/openshift/hypershift/support/controlplane-component"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/testutil"
-	"github.com/openshift/hypershift/support/util"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -73,11 +73,11 @@ func TestAdaptDeployment(t *testing.T) {
 			g.Expect(deployment.Spec.Template.Spec.Containers).ToNot(BeEmpty())
 			container := deployment.Spec.Template.Spec.Containers[0]
 
-			releaseVersionEnv := util.FindEnvVar("RELEASE_VERSION", container.Env)
+			releaseVersionEnv := podspec.FindEnvVar("RELEASE_VERSION", container.Env)
 			g.Expect(releaseVersionEnv).ToNot(BeNil())
 			g.Expect(releaseVersionEnv.Value).To(Equal(tc.expectedReleaseVersionEnv))
 
-			clusterNodeTunedImageEnv := util.FindEnvVar("CLUSTER_NODE_TUNED_IMAGE", container.Env)
+			clusterNodeTunedImageEnv := podspec.FindEnvVar("CLUSTER_NODE_TUNED_IMAGE", container.Env)
 			g.Expect(clusterNodeTunedImageEnv).ToNot(BeNil())
 			g.Expect(clusterNodeTunedImageEnv.Value).To(Equal(tc.expectedClusterNodeTunedEnv))
 		})

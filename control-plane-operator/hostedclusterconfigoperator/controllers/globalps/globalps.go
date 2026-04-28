@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/openshift/hypershift/control-plane-operator/hostedclusterconfigoperator/controllers/resources/manifests"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/thirdparty/kubernetes/pkg/credentialprovider"
 	"github.com/openshift/hypershift/support/upsert"
 	"github.com/openshift/hypershift/support/util"
@@ -351,16 +352,16 @@ func buildGlobalPSVolumeMounts(globalPullSecretName string) []corev1.VolumeMount
 	return volumeMounts
 }
 
-// buildGlobalPSVolumes creates volumes for the GlobalPullSecret DaemonSet using util.BuildVolume pattern
+// buildGlobalPSVolumes creates volumes for the GlobalPullSecret DaemonSet using podspec.BuildVolume pattern
 func buildGlobalPSVolumes(globalPullSecretName string, originalPullSecretName string) []corev1.Volume {
 	var volumes []corev1.Volume
 
-	volumes = append(volumes, util.BuildVolume(globalPSVolumeKubeletConfig(), buildGlobalPSVolumeKubeletConfig))
-	volumes = append(volumes, util.BuildVolume(globalPSVolumeDbus(), buildGlobalPSVolumeDbus))
-	volumes = append(volumes, util.BuildVolume(globalPSVolumeOriginalPullSecret(), buildGlobalPSVolumeOriginalPullSecret(originalPullSecretName)))
+	volumes = append(volumes, podspec.BuildVolume(globalPSVolumeKubeletConfig(), buildGlobalPSVolumeKubeletConfig))
+	volumes = append(volumes, podspec.BuildVolume(globalPSVolumeDbus(), buildGlobalPSVolumeDbus))
+	volumes = append(volumes, podspec.BuildVolume(globalPSVolumeOriginalPullSecret(), buildGlobalPSVolumeOriginalPullSecret(originalPullSecretName)))
 
 	if globalPullSecretName != "" {
-		volumes = append(volumes, util.BuildVolume(globalPSVolumeGlobalPullSecret(), buildGlobalPSVolumeGlobalPullSecret(globalPullSecretName)))
+		volumes = append(volumes, podspec.BuildVolume(globalPSVolumeGlobalPullSecret(), buildGlobalPSVolumeGlobalPullSecret(globalPullSecretName)))
 	}
 
 	return volumes

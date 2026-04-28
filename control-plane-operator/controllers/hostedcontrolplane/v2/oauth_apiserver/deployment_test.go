@@ -10,7 +10,7 @@ import (
 	"github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/assets"
 	"github.com/openshift/hypershift/support/api"
 	component "github.com/openshift/hypershift/support/controlplane-component"
-	"github.com/openshift/hypershift/support/util"
+	"github.com/openshift/hypershift/support/podspec"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -58,7 +58,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err := adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--etcd-servers=https://etcd-client:2379"))
 				g.Expect(container.Args).To(ContainElement("--api-audiences=https://test-issuer.example.com"))
@@ -97,12 +97,12 @@ func TestAdaptDeployment(t *testing.T) {
 				err := adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--etcd-servers=https://custom-etcd.example.com:2379"))
 
 				// Check NO_PROXY includes the custom etcd hostname
-				noProxyEnv := util.FindEnvVar("NO_PROXY", container.Env)
+				noProxyEnv := podspec.FindEnvVar("NO_PROXY", container.Env)
 				g.Expect(noProxyEnv).ToNot(BeNil())
 				g.Expect(noProxyEnv.Value).To(ContainSubstring("custom-etcd.example.com"))
 			},
@@ -145,7 +145,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err := adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--tls-min-version=VersionTLS13"))
 			},
@@ -183,19 +183,19 @@ func TestAdaptDeployment(t *testing.T) {
 				err := adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--audit-webhook-config-file=/etc/kubernetes/auditwebhook/webhook-kubeconfig"))
 				g.Expect(container.Args).To(ContainElement("--audit-webhook-mode=batch"))
 				g.Expect(container.Args).To(ContainElement("--audit-webhook-initial-backoff=5s"))
 
 				// Check volume mount
-				volumeMount := util.FindVolumeMount(auditWebhookConfigFileVolumeName, container.VolumeMounts)
+				volumeMount := podspec.FindVolumeMount(auditWebhookConfigFileVolumeName, container.VolumeMounts)
 				g.Expect(volumeMount).ToNot(BeNil())
 				g.Expect(volumeMount.MountPath).To(Equal("/etc/kubernetes/auditwebhook"))
 
 				// Check volume
-				volume := util.FindVolume(auditWebhookConfigFileVolumeName, deployment.Spec.Template.Spec.Volumes)
+				volume := podspec.FindVolume(auditWebhookConfigFileVolumeName, deployment.Spec.Template.Spec.Volumes)
 				g.Expect(volume).ToNot(BeNil())
 				g.Expect(volume.VolumeSource.Secret).ToNot(BeNil())
 				g.Expect(volume.VolumeSource.Secret.SecretName).To(Equal("audit-webhook-secret"))
@@ -231,17 +231,17 @@ func TestAdaptDeployment(t *testing.T) {
 				err := adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).ToNot(ContainElement(ContainSubstring("--audit-webhook-config-file")))
 				g.Expect(container.Args).ToNot(ContainElement("--audit-webhook-mode=batch"))
 
 				// Check volume mount doesn't exist
-				volumeMount := util.FindVolumeMount(auditWebhookConfigFileVolumeName, container.VolumeMounts)
+				volumeMount := podspec.FindVolumeMount(auditWebhookConfigFileVolumeName, container.VolumeMounts)
 				g.Expect(volumeMount).To(BeNil())
 
 				// Check volume doesn't exist
-				volume := util.FindVolume(auditWebhookConfigFileVolumeName, deployment.Spec.Template.Spec.Volumes)
+				volume := podspec.FindVolume(auditWebhookConfigFileVolumeName, deployment.Spec.Template.Spec.Volumes)
 				g.Expect(volume).To(BeNil())
 			},
 		},
@@ -284,7 +284,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err := adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).To(ContainElement("--accesstoken-inactivity-timeout=10m0s"))
 			},
@@ -324,7 +324,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err := adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 				g.Expect(container.Args).ToNot(ContainElement(ContainSubstring("--accesstoken-inactivity-timeout")))
 			},
@@ -359,7 +359,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g.Expect(loadErr).ToNot(HaveOccurred())
 
 				// Verify audit-logs container exists in base manifest before adaptation
-				preContainer := util.FindContainer("audit-logs", deployment.Spec.Template.Spec.Containers)
+				preContainer := podspec.FindContainer("audit-logs", deployment.Spec.Template.Spec.Containers)
 				g.Expect(preContainer).ToNot(BeNil(), "audit-logs container should exist in base manifest")
 
 				cpContext := component.WorkloadContext{
@@ -370,7 +370,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err := adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer("audit-logs", deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer("audit-logs", deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).To(BeNil(), "audit-logs container should be removed after adaptation")
 			},
 		},
@@ -404,10 +404,10 @@ func TestAdaptDeployment(t *testing.T) {
 				err := adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+				container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 				g.Expect(container).ToNot(BeNil())
 
-				noProxyEnv := util.FindEnvVar("NO_PROXY", container.Env)
+				noProxyEnv := podspec.FindEnvVar("NO_PROXY", container.Env)
 				g.Expect(noProxyEnv).ToNot(BeNil())
 				g.Expect(noProxyEnv.Value).To(ContainSubstring("kube-apiserver"))
 				g.Expect(noProxyEnv.Value).To(ContainSubstring("etcd-client"))
@@ -447,7 +447,7 @@ func TestAdaptDeployment(t *testing.T) {
 
 				// KAS readiness check container should be added
 				g.Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(originalContainerCount + 1))
-				kasReadinessContainer := util.FindContainer("kas-readiness-check", deployment.Spec.Template.Spec.Containers)
+				kasReadinessContainer := podspec.FindContainer("kas-readiness-check", deployment.Spec.Template.Spec.Containers)
 				g.Expect(kasReadinessContainer).ToNot(BeNil(), "kas-readiness-check container should be present")
 			},
 		},
@@ -482,7 +482,7 @@ func TestAdaptDeployment(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				// Verify KAS readiness check container was added with /livez URL
-				kasReadinessContainer := util.FindContainer("kas-readiness-check", deployment.Spec.Template.Spec.Containers)
+				kasReadinessContainer := podspec.FindContainer("kas-readiness-check", deployment.Spec.Template.Spec.Containers)
 				g.Expect(kasReadinessContainer).ToNot(BeNil(), "KAS readiness check container should be present")
 				g.Expect(kasReadinessContainer.ReadinessProbe).ToNot(BeNil(), "KAS readiness check container should have a readiness probe")
 				g.Expect(kasReadinessContainer.ReadinessProbe.Exec).ToNot(BeNil(), "readiness probe should use exec")
@@ -538,17 +538,17 @@ func TestApplyAuditWebhookConfigFileVolume(t *testing.T) {
 			applyAuditWebhookConfigFileVolume(&deployment.Spec.Template.Spec, tc.auditWebhookRef)
 
 			// Check volume was added
-			volume := util.FindVolume(auditWebhookConfigFileVolumeName, deployment.Spec.Template.Spec.Volumes)
+			volume := podspec.FindVolume(auditWebhookConfigFileVolumeName, deployment.Spec.Template.Spec.Volumes)
 			g.Expect(volume).ToNot(BeNil())
 			g.Expect(volume.Name).To(Equal(tc.expectedVolume.Name))
 			g.Expect(volume.VolumeSource.Secret).ToNot(BeNil())
 			g.Expect(volume.VolumeSource.Secret.SecretName).To(Equal(tc.expectedVolume.VolumeSource.Secret.SecretName))
 
 			// Check volume mount was added to the component container
-			container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+			container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 			g.Expect(container).ToNot(BeNil())
 
-			volumeMount := util.FindVolumeMount(auditWebhookConfigFileVolumeName, container.VolumeMounts)
+			volumeMount := podspec.FindVolumeMount(auditWebhookConfigFileVolumeName, container.VolumeMounts)
 			g.Expect(volumeMount).ToNot(BeNil())
 			g.Expect(volumeMount.MountPath).To(Equal(tc.expectedMountPath))
 		})
@@ -649,7 +649,7 @@ func TestAdaptDeploymentMultipleConfigurations(t *testing.T) {
 		err = adaptDeployment(cpContext, deployment)
 		g.Expect(err).ToNot(HaveOccurred())
 
-		container := util.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
+		container := podspec.FindContainer(ComponentName, deployment.Spec.Template.Spec.Containers)
 		g.Expect(container).ToNot(BeNil())
 
 		// Check all configurations are applied
@@ -659,14 +659,14 @@ func TestAdaptDeploymentMultipleConfigurations(t *testing.T) {
 		g.Expect(container.Args).To(ContainElement("--tls-min-version=VersionTLS13"))
 
 		// Check volume and mount
-		volume := util.FindVolume(auditWebhookConfigFileVolumeName, deployment.Spec.Template.Spec.Volumes)
+		volume := podspec.FindVolume(auditWebhookConfigFileVolumeName, deployment.Spec.Template.Spec.Volumes)
 		g.Expect(volume).ToNot(BeNil())
 
-		volumeMount := util.FindVolumeMount(auditWebhookConfigFileVolumeName, container.VolumeMounts)
+		volumeMount := podspec.FindVolumeMount(auditWebhookConfigFileVolumeName, container.VolumeMounts)
 		g.Expect(volumeMount).ToNot(BeNil())
 
 		// Check NO_PROXY
-		noProxyEnv := util.FindEnvVar("NO_PROXY", container.Env)
+		noProxyEnv := podspec.FindEnvVar("NO_PROXY", container.Env)
 		g.Expect(noProxyEnv).ToNot(BeNil())
 		g.Expect(noProxyEnv.Value).To(ContainSubstring("custom-etcd.example.com"))
 	})

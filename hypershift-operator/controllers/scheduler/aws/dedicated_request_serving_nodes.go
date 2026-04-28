@@ -10,6 +10,7 @@ import (
 	schedulingv1alpha1 "github.com/openshift/hypershift/api/scheduling/v1alpha1"
 	"github.com/openshift/hypershift/hypershift-operator/controllers/hostedcluster"
 	schedulerutil "github.com/openshift/hypershift/hypershift-operator/controllers/scheduler/util"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/upsert"
 	"github.com/openshift/hypershift/support/util"
 
@@ -616,7 +617,7 @@ func (r *DedicatedServingComponentSchedulerAndSizer) Reconcile(ctx context.Conte
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	if deployment != nil && util.IsDeploymentReady(ctx, deployment) {
+	if deployment != nil && podspec.IsDeploymentReady(ctx, deployment) {
 		log.Info("placeholder ready, adding node labels")
 		nodes, err := r.deploymentNodes(ctx, deployment)
 		if err != nil {
@@ -702,7 +703,7 @@ func (r *DedicatedServingComponentSchedulerAndSizer) nodesFromPlaceholders(ctx c
 		if d.Labels[hyperv1.HostedClusterSizeLabel] != size {
 			continue
 		}
-		if util.IsDeploymentReady(ctx, d) {
+		if podspec.IsDeploymentReady(ctx, d) {
 			deployment = d
 			break
 		}

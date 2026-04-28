@@ -38,6 +38,7 @@ import (
 	component "github.com/openshift/hypershift/support/controlplane-component"
 	"github.com/openshift/hypershift/support/events"
 	"github.com/openshift/hypershift/support/metrics"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/releaseinfo"
 	"github.com/openshift/hypershift/support/supportedversion"
 	"github.com/openshift/hypershift/support/thirdparty/library-go/pkg/image/reference"
@@ -412,12 +413,12 @@ func NewStartCommand() *cobra.Command {
 		}
 
 		componentImages := map[string]string{
-			util.AvailabilityProberImageName: availabilityProberImage,
-			"hosted-cluster-config-operator": hostedClusterConfigOperatorImage,
-			"socks5-proxy":                   socks5ProxyImage,
-			"token-minter":                   tokenMinterImage,
-			util.CPOImageName:                cpoImage,
-			util.CPPKIOImageName:             cpoImage,
+			podspec.AvailabilityProberImageName: availabilityProberImage,
+			"hosted-cluster-config-operator":    hostedClusterConfigOperatorImage,
+			"socks5-proxy":                      socks5ProxyImage,
+			"token-minter":                      tokenMinterImage,
+			podspec.CPOImageName:                cpoImage,
+			podspec.CPPKIOImageName:             cpoImage,
 		}
 		for _, pair := range strings.Split(imageOverridesStr, ",") {
 			if pair == "" {

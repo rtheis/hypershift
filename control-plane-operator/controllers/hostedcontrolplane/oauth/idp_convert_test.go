@@ -12,7 +12,7 @@ import (
 
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	"github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/manifests"
-	"github.com/openshift/hypershift/support/util"
+	"github.com/openshift/hypershift/support/podspec"
 
 	configv1 "github.com/openshift/api/config/v1"
 	osinv1 "github.com/openshift/api/osin/v1"
@@ -29,8 +29,8 @@ func TestOpenIDProviderConversion(t *testing.T) {
 	groupsInput := []configv1.OpenIDClaim{"groups"}
 	volumeMountInfo := &IDPVolumeMountInfo{
 		Container: oauthContainerMain().Name,
-		VolumeMounts: util.PodVolumeMounts{
-			oauthContainerMain().Name: util.ContainerVolumeMounts{},
+		VolumeMounts: podspec.VolumeMounts{
+			oauthContainerMain().Name: podspec.ContainerMounts{},
 		},
 	}
 	const namespace = "test"

@@ -18,6 +18,7 @@ import (
 	supportassets "github.com/openshift/hypershift/support/assets"
 	controlplanecomponent "github.com/openshift/hypershift/support/controlplane-component"
 	karpenterutil "github.com/openshift/hypershift/support/karpenter"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/releaseinfo"
 	"github.com/openshift/hypershift/support/upsert"
 	"github.com/openshift/hypershift/support/util"
@@ -288,7 +289,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	imageProvider := imageprovider.New(releaseImage)
 	imageProvider.ComponentImages()["token-minter"] = r.ControlPlaneOperatorImage
-	imageProvider.ComponentImages()[util.AvailabilityProberImageName] = r.ControlPlaneOperatorImage
+	imageProvider.ComponentImages()[podspec.AvailabilityProberImageName] = r.ControlPlaneOperatorImage
 
 	cpContext := controlplanecomponent.ControlPlaneContext{
 		Context:              ctx,

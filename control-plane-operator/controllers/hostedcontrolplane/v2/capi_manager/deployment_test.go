@@ -8,6 +8,7 @@ import (
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	assets "github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/assets"
 	component "github.com/openshift/hypershift/support/controlplane-component"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/testutil"
 	"github.com/openshift/hypershift/support/util"
 
@@ -98,7 +99,7 @@ func TestAdaptDeployment(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Find the manager container
-			managerContainer := util.FindContainer("manager", deployment.Spec.Template.Spec.Containers)
+			managerContainer := podspec.FindContainer("manager", deployment.Spec.Template.Spec.Containers)
 			g.Expect(managerContainer).ToNot(BeNil())
 
 			// Check expected args

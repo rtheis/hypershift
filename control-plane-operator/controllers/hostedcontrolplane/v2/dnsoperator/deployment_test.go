@@ -8,8 +8,8 @@ import (
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	assets "github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/assets"
 	component "github.com/openshift/hypershift/support/controlplane-component"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/testutil"
-	"github.com/openshift/hypershift/support/util"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -34,7 +34,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err = adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				dnsContainer := util.FindContainer("dns-operator", deployment.Spec.Template.Spec.Containers)
+				dnsContainer := podspec.FindContainer("dns-operator", deployment.Spec.Template.Spec.Containers)
 
 				g.Expect(dnsContainer).ToNot(BeNil())
 				g.Expect(dnsContainer.Command).To(Equal([]string{"dns-operator"}))
@@ -50,7 +50,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err = adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				dnsContainer := util.FindContainer("dns-operator", deployment.Spec.Template.Spec.Containers)
+				dnsContainer := podspec.FindContainer("dns-operator", deployment.Spec.Template.Spec.Containers)
 
 				g.Expect(dnsContainer).ToNot(BeNil())
 				g.Expect(dnsContainer.ImagePullPolicy).To(Equal(corev1.PullIfNotPresent))
@@ -66,7 +66,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err = adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				dnsContainer := util.FindContainer("dns-operator", deployment.Spec.Template.Spec.Containers)
+				dnsContainer := podspec.FindContainer("dns-operator", deployment.Spec.Template.Spec.Containers)
 
 				g.Expect(dnsContainer).ToNot(BeNil())
 				g.Expect(dnsContainer.Env).To(HaveLen(5))
@@ -93,7 +93,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err = adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				dnsContainer := util.FindContainer("dns-operator", deployment.Spec.Template.Spec.Containers)
+				dnsContainer := podspec.FindContainer("dns-operator", deployment.Spec.Template.Spec.Containers)
 
 				g.Expect(dnsContainer).ToNot(BeNil())
 				g.Expect(dnsContainer.Resources.Requests).To(HaveKeyWithValue(corev1.ResourceCPU, resource.MustParse("10m")))
@@ -110,7 +110,7 @@ func TestAdaptDeployment(t *testing.T) {
 				err = adaptDeployment(cpContext, deployment)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				dnsContainer := util.FindContainer("dns-operator", deployment.Spec.Template.Spec.Containers)
+				dnsContainer := podspec.FindContainer("dns-operator", deployment.Spec.Template.Spec.Containers)
 
 				g.Expect(dnsContainer).ToNot(BeNil())
 				g.Expect(dnsContainer.TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))

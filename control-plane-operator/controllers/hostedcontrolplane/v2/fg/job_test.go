@@ -8,8 +8,8 @@ import (
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	assets "github.com/openshift/hypershift/control-plane-operator/controllers/hostedcontrolplane/v2/assets"
 	component "github.com/openshift/hypershift/support/controlplane-component"
+	"github.com/openshift/hypershift/support/podspec"
 	"github.com/openshift/hypershift/support/testutil"
-	"github.com/openshift/hypershift/support/util"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -41,23 +41,23 @@ func TestAdaptJob(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				// Check render-feature-gates init container
-				renderContainer := util.FindContainer("render-feature-gates", job.Spec.Template.Spec.InitContainers)
+				renderContainer := podspec.FindContainer("render-feature-gates", job.Spec.Template.Spec.InitContainers)
 				g.Expect(renderContainer).ToNot(BeNil())
 
-				payloadVersionEnv := util.FindEnvVar("PAYLOAD_VERSION", renderContainer.Env)
+				payloadVersionEnv := podspec.FindEnvVar("PAYLOAD_VERSION", renderContainer.Env)
 				g.Expect(payloadVersionEnv).ToNot(BeNil())
 				g.Expect(payloadVersionEnv.Value).To(Equal(testutil.FakeImageProvider().Version()))
 
-				featureGateEnv := util.FindEnvVar("FEATURE_GATE_YAML", renderContainer.Env)
+				featureGateEnv := podspec.FindEnvVar("FEATURE_GATE_YAML", renderContainer.Env)
 				g.Expect(featureGateEnv).ToNot(BeNil())
 				g.Expect(featureGateEnv.Value).To(ContainSubstring("kind: FeatureGate"))
 				g.Expect(featureGateEnv.Value).To(ContainSubstring("name: cluster"))
 
 				// Check apply container
-				applyContainer := util.FindContainer("apply", job.Spec.Template.Spec.Containers)
+				applyContainer := podspec.FindContainer("apply", job.Spec.Template.Spec.Containers)
 				g.Expect(applyContainer).ToNot(BeNil())
 
-				applyPayloadVersionEnv := util.FindEnvVar("PAYLOAD_VERSION", applyContainer.Env)
+				applyPayloadVersionEnv := podspec.FindEnvVar("PAYLOAD_VERSION", applyContainer.Env)
 				g.Expect(applyPayloadVersionEnv).ToNot(BeNil())
 				g.Expect(applyPayloadVersionEnv.Value).To(Equal(testutil.FakeImageProvider().Version()))
 			},
@@ -82,10 +82,10 @@ func TestAdaptJob(t *testing.T) {
 			validate: func(g Gomega, job *batchv1.Job, err error) {
 				g.Expect(err).ToNot(HaveOccurred())
 
-				renderContainer := util.FindContainer("render-feature-gates", job.Spec.Template.Spec.InitContainers)
+				renderContainer := podspec.FindContainer("render-feature-gates", job.Spec.Template.Spec.InitContainers)
 				g.Expect(renderContainer).ToNot(BeNil())
 
-				featureGateEnv := util.FindEnvVar("FEATURE_GATE_YAML", renderContainer.Env)
+				featureGateEnv := podspec.FindEnvVar("FEATURE_GATE_YAML", renderContainer.Env)
 				g.Expect(featureGateEnv).ToNot(BeNil())
 				g.Expect(featureGateEnv.Value).To(ContainSubstring("featureSet: TechPreviewNoUpgrade"))
 			},
@@ -119,10 +119,10 @@ func TestAdaptJob(t *testing.T) {
 			validate: func(g Gomega, job *batchv1.Job, err error) {
 				g.Expect(err).ToNot(HaveOccurred())
 
-				renderContainer := util.FindContainer("render-feature-gates", job.Spec.Template.Spec.InitContainers)
+				renderContainer := podspec.FindContainer("render-feature-gates", job.Spec.Template.Spec.InitContainers)
 				g.Expect(renderContainer).ToNot(BeNil())
 
-				featureGateEnv := util.FindEnvVar("FEATURE_GATE_YAML", renderContainer.Env)
+				featureGateEnv := podspec.FindEnvVar("FEATURE_GATE_YAML", renderContainer.Env)
 				g.Expect(featureGateEnv).ToNot(BeNil())
 				g.Expect(featureGateEnv.Value).To(ContainSubstring("featureSet: CustomNoUpgrade"))
 				g.Expect(featureGateEnv.Value).To(ContainSubstring("CustomFeature1"))
@@ -168,14 +168,14 @@ func TestAdaptJobPreservesExistingEnvVars(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Add existing env vars to containers
-	renderContainer := util.FindContainer("render-feature-gates", job.Spec.Template.Spec.InitContainers)
+	renderContainer := podspec.FindContainer("render-feature-gates", job.Spec.Template.Spec.InitContainers)
 	g.Expect(renderContainer).ToNot(BeNil())
 	renderContainer.Env = append(renderContainer.Env, corev1.EnvVar{
 		Name:  "EXISTING_VAR",
 		Value: "existing-value",
 	})
 
-	applyContainer := util.FindContainer("apply", job.Spec.Template.Spec.Containers)
+	applyContainer := podspec.FindContainer("apply", job.Spec.Template.Spec.Containers)
 	g.Expect(applyContainer).ToNot(BeNil())
 	applyContainer.Env = append(applyContainer.Env, corev1.EnvVar{
 		Name:  "ANOTHER_EXISTING_VAR",
@@ -192,13 +192,13 @@ func TestAdaptJobPreservesExistingEnvVars(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Check that existing env vars are preserved
-	renderContainer = util.FindContainer("render-feature-gates", job.Spec.Template.Spec.InitContainers)
-	existingVar := util.FindEnvVar("EXISTING_VAR", renderContainer.Env)
+	renderContainer = podspec.FindContainer("render-feature-gates", job.Spec.Template.Spec.InitContainers)
+	existingVar := podspec.FindEnvVar("EXISTING_VAR", renderContainer.Env)
 	g.Expect(existingVar).ToNot(BeNil())
 	g.Expect(existingVar.Value).To(Equal("existing-value"))
 
-	applyContainer = util.FindContainer("apply", job.Spec.Template.Spec.Containers)
-	anotherExistingVar := util.FindEnvVar("ANOTHER_EXISTING_VAR", applyContainer.Env)
+	applyContainer = podspec.FindContainer("apply", job.Spec.Template.Spec.Containers)
+	anotherExistingVar := podspec.FindEnvVar("ANOTHER_EXISTING_VAR", applyContainer.Env)
 	g.Expect(anotherExistingVar).ToNot(BeNil())
 	g.Expect(anotherExistingVar.Value).To(Equal("another-existing-value"))
 }
