@@ -9,13 +9,24 @@ The HyperShift API module is a separate Go module with its own `go.mod` file. It
 - Core Kubernetes APIs (`k8s.io/api`, `k8s.io/apimachinery`, `k8s.io/utils`)
 - OpenShift API definitions (`github.com/openshift/api`)
 
+## Allowlist Configuration
+
+The allowed dependencies are defined in `api/.imports_allowed` - a simple text file with one module path per line. This file:
+
+- **Lives in the API module** alongside the `go.mod` file
+- **Falls under API reviewer control** via the OWNERS file
+- **Requires API reviewer approval** for any changes
+- **Supports comments** (lines starting with `#`)
+- **One dependency per line** format
+
 ## How It Works
 
 1. **Locates** the API module at `./api` (fixed path relative to repository root)
-2. **Reads** the `api/go.mod` file
-3. **Parses** the required dependencies (ignoring indirect dependencies)
-4. **Validates** each dependency against a predefined allowlist
-5. **Fails** with a detailed error message if unauthorized dependencies are found
+2. **Loads** the allowed dependencies from `api/.imports_allowed` file
+3. **Reads** the `api/go.mod` file
+4. **Parses** the required dependencies (ignoring indirect dependencies)
+5. **Validates** each dependency against the allowlist
+6. **Fails** with a detailed error message if unauthorized dependencies are found
 
 ## Usage
 
@@ -38,7 +49,7 @@ If you need to add a new dependency to the API module:
 1. **Consult API reviewers first** - discuss alternatives and necessity
 2. **Ensure the dependency is essential** for API type definitions
 3. **Verify compatibility** and that it doesn't introduce breaking changes
-4. **After approval**, add the module path to the `allowedAPIModules` set in `main.go`
+4. **After approval**, add the module path to `api/.imports_allowed`
 5. **Update this documentation** if the reasoning changes
 
 ## Error Messages

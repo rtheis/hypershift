@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,18 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-// allowedAPIModules defines the restricted list of allowed direct dependencies for the API module.
-// Any new dependencies MUST be reviewed by API reviewers BEFORE being added to this list.
-// Note: Indirect dependencies are automatically ignored by the verification logic.
-var allowedAPIModules = sets.New(
-	// Core Kubernetes API dependencies
-	"k8s.io/api",
-	"k8s.io/apimachinery",
-	"k8s.io/utils",
-
-	// OpenShift API dependencies
-	"github.com/openshift/api",
-)
 
 func main() {
 	if err := verifyAPIDependencies(); err != nil {
@@ -34,6 +23,12 @@ func main() {
 func verifyAPIDependencies() error {
 	// The API module is always at ./api relative to the repository root
 	apiModPath := "api"
+
+	// Load allowed dependencies from the .imports_allowed file
+	allowedAPIModules, err := loadAllowedImports(apiModPath)
+	if err != nil {
+		return fmt.Errorf("failed to load allowed imports: %w", err)
+	}
 
 	// Read the go.mod file
 	goModPath := filepath.Join(apiModPath, "go.mod")
@@ -77,10 +72,10 @@ Before adding any new dependencies to the API module, you must:
 1. Consult with API reviewers to discuss alternatives
 2. Ensure the dependency is absolutely necessary for the API layer
 3. Verify it doesn't introduce breaking changes or version conflicts
-4. Update the allowlist in hack/tools/verify-api-deps/main.go after approval
+4. Update the allowlist in api/.imports_allowed after approval
 
-If this dependency is approved by API reviewers, add it to allowedAPIModules in:
-hack/tools/verify-api-deps/main.go
+If this dependency is approved by API reviewers, add it to the allowlist in:
+api/.imports_allowed
 
 For questions, reach out to the HyperShift API review team.`,
 			formatViolations(violations))
@@ -95,4 +90,34 @@ func formatViolations(violations []string) string {
 		formatted = append(formatted, fmt.Sprintf("  • %s", v))
 	}
 	return strings.Join(formatted, "\n")
+}
+
+func loadAllowedImports(apiModPath string) (sets.Set[string], error) {
+	allowedImportsPath := filepath.Join(apiModPath, ".imports_allowed")
+
+	file, err := os.Open(allowedImportsPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open %s: %w", allowedImportsPath, err)
+	}
+	defer file.Close()
+
+	allowedModules := sets.New[string]()
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		allowedModules.Insert(line)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read %s: %w", allowedImportsPath, err)
+	}
+
+	return allowedModules, nil
 }
