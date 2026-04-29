@@ -13,14 +13,17 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	configv1 "github.com/openshift/api/config/v1"
-	operatorv1 "github.com/openshift/api/operator/v1"
+
 	hyperv1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	"github.com/openshift/hypershift/hypershift-operator/controllers/manifests"
 	"github.com/openshift/hypershift/support/azureutil"
 	e2eutil "github.com/openshift/hypershift/test/e2e/util"
 	"github.com/openshift/hypershift/test/integration"
 	integrationframework "github.com/openshift/hypershift/test/integration/framework"
+
+	configv1 "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/clientcmd"
@@ -128,6 +131,14 @@ func TestCreateCluster(t *testing.T) {
 			// ensure Ingress Operator configuration is properly applied
 			e2eutil.EnsureIngressOperatorConfiguration(t, ctx, mgtClient, guestClient, hostedCluster)
 		}
+
+		e2eutil.EnsureAWSCCMWithCustomizations(t, ctx, &e2eutil.AWSCCMTestConfig{
+			MgtClient:     mgtClient,
+			GuestClient:   guestClient,
+			HostedCluster: hostedCluster,
+			AWSCredsFile:  clusterOpts.AWSPlatform.Credentials.AWSCredentialsFile,
+			Platform:      globalOpts.Platform,
+		})
 	}).WithAssetReader(content.ReadFile).
 		Execute(&clusterOpts, globalOpts.Platform, globalOpts.ArtifactDir, "create-cluster", globalOpts.ServiceAccountSigningKey)
 }
@@ -318,7 +329,11 @@ func TestCreateClusterCustomConfig(t *testing.T) {
 	e2eutil.NewHypershiftTest(t, ctx, func(t *testing.T, g Gomega, mgtClient crclient.Client, hostedCluster *hyperv1.HostedCluster) {
 		switch globalOpts.Platform {
 		case hyperv1.AWSPlatform:
+			g.Expect(hostedCluster.Spec.SecretEncryption).ToNot(BeNil(), "SecretEncryption must be set")
+			g.Expect(hostedCluster.Spec.SecretEncryption.KMS).ToNot(BeNil(), "SecretEncryption.KMS must be set")
+			g.Expect(hostedCluster.Spec.SecretEncryption.KMS.AWS).ToNot(BeNil(), "KMS.AWS must be set")
 			g.Expect(hostedCluster.Spec.SecretEncryption.KMS.AWS.ActiveKey.ARN).To(Equal(*kmsKeyArn))
+			g.Expect(hostedCluster.Spec.SecretEncryption.KMS.AWS.Auth).ToNot(BeNil(), "KMS.AWS.Auth must be set")
 			g.Expect(hostedCluster.Spec.SecretEncryption.KMS.AWS.Auth.AWSKMSRoleARN).ToNot(BeEmpty())
 		case hyperv1.AzurePlatform:
 			g.Expect(hostedCluster.Spec.SecretEncryption).ToNot(BeNil(), "SecretEncryption must be set")
