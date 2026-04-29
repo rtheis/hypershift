@@ -20,10 +20,18 @@ Key make targets for API work:
 ```bash
 make api               # Regenerate all CRDs, deepcopy, clients
 make api-lint-fix      # Run API linter and auto-fix violations
+make verify-api-deps   # Verify API dependencies
 make verify            # Full verification (includes api, fmt, vet, lint)
 make update            # Full update (api-deps, workspace-sync, deps, api, api-docs, clients)
 ENVTEST_OCP_K8S_VERSIONS=1.35.0 make test-envtest-ocp # Run envtest for CEL validations
 ```
+
+### API Dependencies
+
+It is imperative that the imported dependencies are kept minimal. Use `make verify-api-deps` to verify that the dependencies are allowed.
+New dependencies must be approved by API reviewers and added to `api/.imports_allowed`.
+
+To avoid introducing new dependencies, do not add utils or methods to the API types.
 
 ### Serialization
 

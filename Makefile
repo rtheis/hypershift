@@ -19,6 +19,7 @@ STATICCHECK := $(abspath $(TOOLS_BIN_DIR)/staticcheck)
 GENAPIDOCS := $(abspath $(TOOLS_BIN_DIR)/gen-crd-api-reference-docs)
 MOCKGEN := $(abspath $(TOOLS_BIN_DIR)/mockgen)
 YQ := $(abspath $(TOOLS_BIN_DIR)/yq)
+VERIFY_API_DEPS := $(abspath $(TOOLS_BIN_DIR)/verify-api-deps)
 
 CODESPELL_VER := 2.4.1
 CODESPELL_BIN := codespell
@@ -143,7 +144,7 @@ verify-codecov: ## Validate codecov.yml against Codecov's API.
 		| tee /dev/stderr | grep -q "^Valid!"
 
 .PHONY: verify-parallel
-verify-parallel: verify-codespell verify-codecov lint cpo-container-sync run-gitlint verify-docs-nav
+verify-parallel: verify-codespell verify-codecov verify-api-deps lint cpo-container-sync run-gitlint verify-docs-nav
 
 .PHONY: verify
 verify: generate update staticcheck fmt vet
@@ -167,6 +168,9 @@ $(GENAPIDOCS): $(TOOLS_DIR)/go.mod
 
 $(MOCKGEN): ${TOOLS_DIR}/go.mod
 	cd $(TOOLS_DIR); $(GO) build -tags=tools -o $(BIN_DIR)/mockgen go.uber.org/mock/mockgen
+
+$(VERIFY_API_DEPS): $(TOOLS_DIR)/go.mod # Build verify-api-deps tool
+	cd $(TOOLS_DIR); $(GO) build -o $(BIN_DIR)/verify-api-deps ./verify-api-deps
 
 
 .PHONY: generate
@@ -581,6 +585,10 @@ verify-docs-nav: $(PYYAML_STAMP) ## Verify docs nav entries are sorted alphabeti
 .PHONY: verify-codespell
 verify-codespell: codespell ## Verify codespell.
 	@$(CODESPELL) --count --ignore-words=./.codespellignore --skip="./hack/tools/bin/codespell_dist,./docs/site/*,./vendor/*,./api/vendor/*,./hack/tools/vendor/*,./api/hypershift/v1alpha1/*,./support/thirdparty/*,./docs/content/reference/*,./hack/tools/bin/*,./cmd/install/assets/*,./go.sum,./hack/workspace/go.work.sum,./api/hypershift/v1beta1/zz_generated.featuregated-crd-manifests,./hack/tools/go.mod,./hack/tools/go.sum,./karpenter-operator/controllers/karpenter/assets/*.yaml,./dev/*"
+
+.PHONY: verify-api-deps
+verify-api-deps: $(VERIFY_API_DEPS) ## Verify API dependencies against allowlist.
+	@$(VERIFY_API_DEPS)
 
 .PHONY: run-gitlint
 run-gitlint: $(GITLINT)
