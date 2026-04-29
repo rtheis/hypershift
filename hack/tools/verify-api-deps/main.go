@@ -21,8 +21,13 @@ func main() {
 }
 
 func verifyAPIDependencies() error {
-	// The API module is always at ./api relative to the repository root
-	apiModPath := "api"
+	// Find the repository root and locate the API module
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		return fmt.Errorf("failed to find repository root: %w", err)
+	}
+
+	apiModPath := filepath.Join(repoRoot, "api")
 
 	// Load allowed dependencies from the .imports_allowed file
 	allowedAPIModules, err := loadAllowedImports(apiModPath)
@@ -120,4 +125,34 @@ func loadAllowedImports(apiModPath string) (sets.Set[string], error) {
 	}
 
 	return allowedModules, nil
+}
+
+func findRepoRoot() (string, error) {
+	// Start from current working directory and walk up to find .git directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	dir := cwd
+	for {
+		// Check if .git directory exists
+		if fileExists(filepath.Join(dir, ".git")) {
+			return dir, nil
+		}
+
+		// Check if we've reached the root
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+
+	return "", fmt.Errorf("could not find repository root (no .git directory found)")
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

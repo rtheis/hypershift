@@ -21,12 +21,13 @@ The allowed dependencies are defined in `api/.imports_allowed` - a simple text f
 
 ## How It Works
 
-1. **Locates** the API module at `./api` (fixed path relative to repository root)
-2. **Loads** the allowed dependencies from `api/.imports_allowed` file
-3. **Reads** the `api/go.mod` file
-4. **Parses** the required dependencies (ignoring indirect dependencies)
-5. **Validates** each dependency against the allowlist
-6. **Fails** with a detailed error message if unauthorized dependencies are found
+1. **Finds** the repository root by walking up directories to locate the `.git` directory
+2. **Locates** the API module at `<repo-root>/api`
+3. **Loads** the allowed dependencies from `api/.imports_allowed` file
+4. **Reads** the `api/go.mod` file
+5. **Parses** the required dependencies (ignoring indirect dependencies)
+6. **Validates** each dependency against the allowlist
+7. **Fails** with a detailed error message if unauthorized dependencies are found
 
 ## Usage
 
@@ -37,7 +38,7 @@ make verify
 # Run standalone
 make verify-api-deps
 
-# Build and run directly
+# Build and run directly (works from any directory within the repo)
 cd hack/tools/verify-api-deps
 go run main.go
 ```
