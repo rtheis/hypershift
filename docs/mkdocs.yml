@@ -87,11 +87,11 @@ nav:
   - how-to/per-hostedcluster-dashboard.md
   - 'Disaster Recovery':
     - how-to/disaster-recovery/index.md
+    - 'Prerequisites': how-to/disaster-recovery/prerequisites.md
     - how-to/disaster-recovery/dr-cli.md
     - how-to/disaster-recovery/backup-and-restore-oadp.md
     - how-to/disaster-recovery/backup-and-restore-oadp-1-5.md
     - how-to/disaster-recovery/etcd-recovery.md
-    - 'Prerequisites': how-to/disaster-recovery/prerequisites.md
     - 'Etcd Snapshot Backup (Tech Preview)':
       - how-to/disaster-recovery/etcd-snapshot-backup/index.md
       - how-to/disaster-recovery/etcd-snapshot-backup/backup-flow.md
