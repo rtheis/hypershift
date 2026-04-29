@@ -3,8 +3,13 @@
 
 Index pages (index.md) are exempt from sorting and must appear first
 in each section.
+
+Use --max-depth to control how many nav levels are checked:
+  1  = only top-level entries (default)
+  -1 = all levels (unlimited)
 """
 
+import argparse
 import os
 import sys
 
@@ -79,8 +84,12 @@ def get_display_title(entry):
     return ""
 
 
-def check_section_order(entries, path=""):
+def check_section_order(entries, path="", max_depth=1):
     """Check that entries in a section are sorted alphabetically.
+
+    max_depth controls how many levels deep to verify:
+      1  = only this level (default)
+     -1  = unlimited (all levels)
 
     Returns a list of error messages.
     """
@@ -114,18 +123,29 @@ def check_section_order(entries, path=""):
         for t in sorted_titles:
             errors.append("    - {}".format(t))
 
-    # Recursively check subsections
-    for title, entry in regular_entries:
-        if isinstance(entry, dict):
-            value = list(entry.values())[0]
-            if isinstance(value, list):
-                sub_path = "{} > {}".format(path, title) if path else title
-                errors.extend(check_section_order(value, path=sub_path))
+    # Recursively check subsections if depth allows
+    if max_depth != 1:
+        for title, entry in regular_entries:
+            if isinstance(entry, dict):
+                value = list(entry.values())[0]
+                if isinstance(value, list):
+                    sub_path = "{} > {}".format(path, title) if path else title
+                    next_depth = max_depth - 1 if max_depth > 0 else max_depth
+                    errors.extend(check_section_order(value, path=sub_path, max_depth=next_depth))
 
     return errors
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Verify docs nav alphabetical order.")
+    parser.add_argument(
+        '--max-depth', type=int, default=1,
+        help='How many nav levels to verify (1=top only, -1=unlimited). Default: 1',
+    )
+    args = parser.parse_args()
+    if args.max_depth != -1 and args.max_depth < 1:
+        parser.error("--max-depth must be -1 (unlimited) or a positive integer")
+
     mkdocs_path = os.path.join(SCRIPT_DIR, '..', 'docs', 'mkdocs.yml')
 
     with open(mkdocs_path) as f:
@@ -143,7 +163,7 @@ def main():
         print("ERROR: Could not find 'How-to guides' section in nav")
         sys.exit(1)
 
-    errors = check_section_order(howto_section, "How-to guides")
+    errors = check_section_order(howto_section, "How-to guides", max_depth=args.max_depth)
 
     if errors:
         print("ERROR: Docs nav is not sorted alphabetically:")
